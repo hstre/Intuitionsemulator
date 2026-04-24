@@ -21,9 +21,12 @@ class IntuitionSystem:
     Central simulation loop.
 
     mode: "main" | "baseline_a" | "baseline_b" | "baseline_c"
-      baseline_a: H = constant, F = 0
-      baseline_b: H = f(P),     F = 0
-      baseline_c: H = constant, F = main
+          | "baseline_a_prime" | "baseline_c_prime"
+      baseline_a:       H = constant (8.0),  F = 0
+      baseline_b:       H = f(P),            F = 0
+      baseline_c:       H = constant (8.0),  F = main
+      baseline_a_prime: H = constant (12.0), F = 0        # robustness test
+      baseline_c_prime: H = constant (12.0), F = main     # robustness test
     """
 
     def __init__(
