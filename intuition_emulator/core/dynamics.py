@@ -25,16 +25,19 @@ def compute_stability(P_history: list, window: int) -> float:
 
 def compute_half_life(P: float, params: dict, mode: str) -> float:
     """H = H_min + (H_max - H_min) * P  (main model and baseline B).
-    Baselines A and C use a constant H = (H_min + H_max) / 2.
+    Baselines A/C use H_const = (H_min+H_max)/2 = 8.0.
+    Baselines A'/C' use H_const_prime = 12.0 (robustness test).
     """
     if mode in ("baseline_a", "baseline_c"):
         return (params["h_min"] + params["h_max"]) / 2.0
+    if mode in ("baseline_a_prime", "baseline_c_prime"):
+        return 12.0
     return params["h_min"] + (params["h_max"] - params["h_min"]) * P
 
 
 def compute_feedback(claim: ClaimState, context_signal: float, params: dict, mode: str) -> float:
-    """Reactivation feedback F.  Zero for baselines A and B."""
-    if mode in ("baseline_a", "baseline_b"):
+    """Reactivation feedback F.  Zero for baselines A, A' and B."""
+    if mode in ("baseline_a", "baseline_b", "baseline_a_prime"):
         return 0.0
     if claim.status == "verworfen":
         return 0.0

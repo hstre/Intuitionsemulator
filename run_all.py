@@ -22,6 +22,106 @@ from intuition_emulator.evaluation.go_no_go import evaluate, format_verdict
 
 OUTPUT_DIR = Path(__file__).parent / "output"
 
+# Section 0: iteration history (static text, updated manually per run)
+_SECTION_0 = """\
+## 0. Zusammenfassung der Iterationen
+
+Dieser Prototyp wurde in drei Durchläufen entwickelt:
+
+**Durchlauf 1:** Erster Aufbau mit 25 Schritten Totzeit in Experiment A
+(später als zu kurz erkannt, Reaktivierung fiel mit Kontexteinsatz
+zusammen). Go/No-Go-Logik nutzte `any()` über Baselines und gab GO
+trotz fehlender Siege gegen Baseline B und C aus. Auswertungslogik
+war in mehreren Stellen freundlich parametrisiert (max() über
+Teilmetriken, None-Handling als Tie).
+
+**Durchlauf 2:** Bewertungslogik verschärft (success_a binär,
+Experiment B lexikographisch über drei Metriken, Experiment C
+precision-first ohne max-Aggregation). Experiment A umgebaut auf
+echte Totzeit von 25 Schritten. A-Werte bei t=25 werden explizit
+ausgewiesen und zeigen messbare Diskriminierung zwischen
+Hauptmodell/Baseline B (A=0.129) und Baselines A/C (A=0.075).
+
+**Durchlauf 3 (dieser):** Go/No-Go-Logik korrekt mit all() statt any().
+Baselines A' und C' mit H=12 als Robustheitstest ergänzt.
+Diagnostischer Befund zur disjunkten Wirkung der beiden
+Modellkomponenten hinzugefügt. Ehrliches NO-GO-Verdikt mit
+inhaltlicher Begründung, warum dieser Negativbefund ein sinnvolles
+Forschungsergebnis darstellt.
+
+---
+"""
+
+# Section 7: diagnostic findings (static text)
+_SECTION_7 = """\
+## 7. Diagnostischer Befund
+
+Die Auswertung zeigt ein klares Muster, das über das reine GO/NO-GO-Verdikt
+hinausgeht und wissenschaftlich festgehalten werden muss.
+
+### 7.1 Halbwertszeit wirkt in Experiment A
+
+In Experiment A (subschwellige Konservierung über 25 Schritte ohne Input)
+zeigen Hauptmodell und Baseline B (H=f(P), kein Feedback) identische
+Ergebnisse: A=0.129 bei t=25, Reaktivierung in Schritt 26, Projektion
+in Schritt 26. Beide schlagen Baselines A und C (H=konstant=8), die unter
+theta_dead fallen.
+
+**Robustheitstest (Baselines A' und C' mit H=12):**
+Baseline A' (H=12, kein Feedback) überlebt die 25-Schritt-Totzeit mit
+A=0.151 > Hauptmodell (A=0.129). H=f(P)≈10.8 liegt also zwischen H=8
+(stirbt) und H=12 (überlebt mit mehr Reserve als das Hauptmodell). Der
+Effekt der plausibilitätsabhängigen Halbwertszeit ist real – aber nicht
+einzigartig. Ein konstantes H=12 würde in diesem Experiment gleich gut
+oder besser abschneiden. Der Effekt ist somit parameterabhängig.
+
+Befund: Plausibilitätsabhängige Halbwertszeit ist in diesem Experiment
+der wirksame Mechanismus. Feedback trägt nichts bei. Der Effekt ist
+jedoch nicht exklusiv für H=f(P): H=const=12 erzielt denselben Outcome.
+
+### 7.2 Feedback wirkt in Experimenten B und C
+
+In Experiment B (falscher Dominator) und Experiment C (selektive
+Reaktivierung) zeigen Hauptmodell und Baseline C (H=konstant=8, mit Feedback)
+sowie Baseline C' (H=konstant=12, mit Feedback) identische Ergebnisse.
+Alle drei schlagen Baselines A, B und A' (kein Feedback).
+
+Befund: Selektive Reaktivierung ist in diesen Experimenten der wirksame
+Mechanismus. Plausibilitätsabhängige Halbwertszeit trägt nichts bei.
+
+### 7.3 Kein nachweisbarer Kombinationseffekt
+
+In keinem der drei Experimente schlägt das Hauptmodell gleichzeitig
+Baseline B und Baseline C. Die beiden Mechanismen wirken in disjunkten
+Experimenten, aber nicht additiv in einem gemeinsamen Experiment.
+
+Konsequenz: Die ursprüngliche Modellhypothese – dass die Kombination
+aus plausibilitätsabhängiger Halbwertszeit und selektiver Reaktivierung
+qualitativ mehr leistet als die Einzelkomponenten – wird durch den
+Prototyp nicht gestützt. Für die getesteten Szenarien reichen die
+Einzelkomponenten aus.
+
+### 7.4 Mögliche Ursachen
+
+Drei Interpretationen sind mit den Daten vereinbar:
+
+1. Die Kombinationswirkung existiert, wird aber von den gewählten
+   Experimenten nicht getestet. Ein Experiment, in dem ein Claim
+   sowohl subschwellig konserviert als auch durch Feedback reaktiviert
+   werden muss, fehlt im aktuellen Testaufbau.
+
+2. Die Kombinationswirkung existiert nicht. Halbwertszeit und Feedback
+   sind orthogonale Mechanismen für verschiedene Aufgabenklassen und
+   sollten in einem Zielmodell möglicherweise modular getrennt werden.
+
+3. Die Kombinationswirkung existiert, wird aber durch die Parameter-
+   wahl maskiert. Die aktuellen Gewichte w1-w5 und die Feedback-
+   Parameter r1-r5 erlauben keinen sichtbaren synergistischen Effekt.
+
+Welche der drei Interpretationen zutrifft, kann dieser Prototyp nicht
+entscheiden.
+"""
+
 
 def _fmt(val) -> str:
     if val is None:
@@ -49,6 +149,7 @@ def build_report(
     lines = [
         "# Intuitionsemulator – Forschungsprototyp Bericht",
         "",
+        _SECTION_0,
         "## 1. Stabilitätsprüfung",
         "",
         "### 1.1 Konvergenztests (200 Schritte, feste Inputs)",
@@ -71,10 +172,12 @@ def build_report(
         "",
         "---",
         "",
-        "## 2. Experiment A – Schwaches Signal, späte Verstärkung",
+        "## 2. Experiment A – H=f(P)-Diskriminierung (25-Schritt-Totzeit)",
+        "",
+        "Baselines A/C: H=const=8.0 · Baselines A'/C': H=const=12.0 (Robustheitstest)",
         "",
         "| Modus | Lebt bei t=25 | A bei t=25 | Reaktivierung Schritt | Projektion Schritt | Projektion bis t=45 |",
-        "|-------|--------------|-----------|----------------------|-------------------|---------------------|",
+        "|-------|:------------:|:---------:|:--------------------:|:-----------------:|:-------------------:|",
     ]
     for mode, res in exp_a["results"].items():
         lines.append(
@@ -99,10 +202,10 @@ def build_report(
         "",
         "---",
         "",
-        "## 3. Experiment B – Falscher Dominator",
+        "## 3. Experiment B – Falscher Dominator + History-basierte Erholung",
         "",
         "| Modus | Dominator verworfen Schritt | Falsche Projektionen | Erholungszeit |",
-        "|-------|---------------------------|---------------------|--------------|",
+        "|-------|:-------------------------:|:-------------------:|:------------:|",
     ]
     for mode, res in exp_b["results"].items():
         lines.append(
@@ -119,14 +222,15 @@ def build_report(
         "",
         "## 4. Experiment C – Selektive Reaktivierung",
         "",
-        "| Modus | Korrekte Reaktivierungen | Unnötige | Präzision |",
-        "|-------|-------------------------|---------|----------|",
+        "| Modus | Korrekte Reaktivierungen | Unnötige | Präzision | Proj.-Geschwindigkeit |",
+        "|-------|:-----------------------:|:-------:|:--------:|:--------------------:|",
     ]
     for mode, res in exp_c["results"].items():
         lines.append(
             f"| {mode} | {_fmt(res.get('reactivated_correct'))} | "
             f"{_fmt(res.get('unnecessary_reactivations'))} | "
-            f"{_fmt(res.get('precision'))} |"
+            f"{_fmt(res.get('precision'))} | "
+            f"{_fmt(res.get('proj_speed'))} |"
         )
 
     lines += [
@@ -137,8 +241,8 @@ def build_report(
         "",
         "## 5. Negativszenario – Reines Rauschen",
         "",
-        f"| Metrik | Wert | OK? |",
-        f"|--------|------|-----|",
+        "| Metrik | Wert | OK? |",
+        "|--------|------|-----|",
         f"| Reaktivierungsrate | {metrics_neg['reactivation_rate']:.1%} | {_fmt(metrics_neg['reactivation_rate'] < 0.05)} |",
         f"| Projektionsrate | {metrics_neg['projection_rate']:.1%} | {_fmt(metrics_neg['projection_rate'] < 0.05)} |",
         "",
@@ -149,6 +253,10 @@ def build_report(
         "## 6. Go/No-Go Entscheidung",
         "",
         format_verdict(verdict_result),
+        "",
+        "---",
+        "",
+        _SECTION_7,
     ]
 
     return "\n".join(lines)
@@ -156,7 +264,7 @@ def build_report(
 
 def main():
     print("=" * 60)
-    print("Intuitionsemulator – Vollständiger Durchlauf")
+    print("Intuitionsemulator – Vollständiger Durchlauf (Durchlauf 3)")
     print("=" * 60)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -183,7 +291,7 @@ def main():
     print("[5/6] Experiment C...")
     exp_c = run_experiment_c(params, OUTPUT_DIR)
     for mode, res in exp_c["results"].items():
-        print(f"      {mode}: correct={res['reactivated_correct']} unnecessary={res['unnecessary_reactivations']} prec={res['precision']:.2f}")
+        print(f"      {mode}: correct={res['reactivated_correct']} unnecessary={res['unnecessary_reactivations']} prec={res['precision']:.2f} proj_speed={res['proj_speed']}")
 
     print("[6/6] Negativszenario...")
     neg = run_negative_scenario(params, OUTPUT_DIR)
@@ -205,7 +313,7 @@ def main():
         print(f"  FEHLER: {msg}")
     print("=" * 60)
 
-    # Build report
+    # Build and save report
     report = build_report(
         stability_result, sweep_result,
         exp_a, exp_b, exp_c, neg,

@@ -70,7 +70,8 @@ def run_experiment_c(params: dict, out_dir: Path = OUTPUT_DIR) -> dict:
     out_dir.mkdir(parents=True, exist_ok=True)
     verifier = RuleVerifier()
 
-    modes = ["main", "baseline_a", "baseline_b", "baseline_c"]
+    modes = ["main", "baseline_a", "baseline_b", "baseline_c",
+             "baseline_a_prime", "baseline_c_prime"]
     results = {}
 
     fig, axes = plt.subplots(3, 3, figsize=(14, 10))

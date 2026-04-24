@@ -1,6 +1,5 @@
 """Go/No-Go evaluation: checks all three criteria and emits a verdict."""
 from __future__ import annotations
-from typing import Any
 from .metrics import (
     compare_main_vs_baselines_a,
     compare_main_vs_baselines_b,
@@ -10,9 +9,14 @@ from .metrics import (
 IMPROVEMENT_THRESHOLD = 0.20  # 20%
 
 
-def _beats_baselines(comparisons: dict, threshold: float = IMPROVEMENT_THRESHOLD) -> bool:
-    """True if main beats at least one baseline by >= threshold in at least one metric."""
-    return any(v is not None and v >= threshold for v in comparisons.values())
+def _beats_all_baselines(comparisons: dict, threshold: float = IMPROVEMENT_THRESHOLD) -> bool:
+    """True only if main beats EVERY baseline by >= threshold.
+    None (incomparable) and 0.0 (tie) both count as failure.
+    """
+    return all(
+        isinstance(v, float) and v >= threshold
+        for v in comparisons.values()
+    )
 
 
 def evaluate(
@@ -23,7 +27,7 @@ def evaluate(
     sweep_stable: bool,
 ) -> dict:
     """
-    Criterion 1: Main beats ≥2/3 experiments, each by ≥20% on ≥1 baseline metric.
+    Criterion 1: Main beats ALL baselines in ≥2/3 experiments by ≥20%.
     Criterion 2: Negative scenario reactivation <5% AND projection <5%.
     Criterion 3: Sweep stability (qualitative behavior stable at ±20% alpha/eta).
     """
@@ -34,9 +38,9 @@ def evaluate(
     comp_b = compare_main_vs_baselines_b(metrics_b)
     comp_c = compare_main_vs_baselines_c(metrics_c)
 
-    exp_a_beats = _beats_baselines(comp_a)
-    exp_b_beats = _beats_baselines(comp_b)
-    exp_c_beats = _beats_baselines(comp_c)
+    exp_a_beats = _beats_all_baselines(comp_a)
+    exp_b_beats = _beats_all_baselines(comp_b)
+    exp_c_beats = _beats_all_baselines(comp_c)
 
     beaten_count = sum([exp_a_beats, exp_b_beats, exp_c_beats])
     criterion_1 = beaten_count >= 2
@@ -44,9 +48,9 @@ def evaluate(
     diagnostics["criterion_1"] = {
         "passed": criterion_1,
         "experiments_beaten": beaten_count,
-        "exp_a_beats_baselines": exp_a_beats,
-        "exp_b_beats_baselines": exp_b_beats,
-        "exp_c_beats_baselines": exp_c_beats,
+        "exp_a_beats_all_baselines": exp_a_beats,
+        "exp_b_beats_all_baselines": exp_b_beats,
+        "exp_c_beats_all_baselines": exp_c_beats,
         "comparisons_a": comp_a,
         "comparisons_b": comp_b,
         "comparisons_c": comp_c,
@@ -72,18 +76,16 @@ def evaluate(
         "all_sweep_stable": sweep_stable,
     }
 
-    # --- Verdict ---
+    # --- Verdict: only GO requires all 3 criteria ---
     criteria_passed = sum([criterion_1, criterion_2, criterion_3])
-    if criteria_passed == 3:
-        verdict = "GO"
-    elif criteria_passed == 2:
-        verdict = "CONDITIONAL_NO_GO"
-    else:
-        verdict = "NO_GO"
+    verdict = "GO" if criteria_passed == 3 else "NO_GO"
 
     failed = []
     if not criterion_1:
-        failed.append("Criterion 1: Main model does not outperform ≥2/3 experiments by ≥20%")
+        failed.append(
+            f"Criterion 1: Main model beats all baselines in only {beaten_count}/3 experiments "
+            f"(need ≥2, each with ≥{IMPROVEMENT_THRESHOLD:.0%} margin against every baseline)"
+        )
     if not criterion_2:
         failed.append(
             f"Criterion 2: Negative scenario rates too high "
