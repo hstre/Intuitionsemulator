@@ -7,18 +7,20 @@ def extract_metrics_a(results: dict) -> dict:
     baselines = {k: v for k, v in results.items() if k != "main"}
 
     correct_reactivation = (
-        main.get("alive_at_20", False)
+        main.get("alive_at_25", False)
         and main.get("reactivation_step") is not None
-        and main.get("projection_by_50", False)
+        and main.get("projection_by_45", False)
     )
+    all_modes = {"main": main, **baselines}
     return {
         "correct_late_reactivation": 1 if correct_reactivation else 0,
         "avg_time_to_reactivation": main.get("reactivation_time"),
         "baseline_reactivation_times": {k: v.get("reactivation_time") for k, v in baselines.items()},
         "main_reactivated":  main.get("reactivation_step") is not None,
         "baseline_reactivated": {k: v.get("reactivation_step") is not None for k, v in baselines.items()},
-        "alive_at_20":     main.get("alive_at_20", False),
-        "projection_by_50": main.get("projection_by_50", False),
+        "alive_at_25":      main.get("alive_at_25", False),
+        "projection_by_45": main.get("projection_by_45", False),
+        "a_at_25_all":      {k: v.get("a_at_25") for k, v in all_modes.items()},
     }
 
 

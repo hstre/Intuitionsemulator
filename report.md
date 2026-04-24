@@ -22,18 +22,19 @@ Alle Kombinationen stabil: **✓**
 
 ## 2. Experiment A – Schwaches Signal, späte Verstärkung
 
-| Modus | Lebt bei t=20 | Reaktivierung Schritt | Projektion Schritt | Projektion bis t=50 |
-|-------|--------------|----------------------|-------------------|---------------------|
-| main | ✓ | 30 | 30 | ✓ |
-| baseline_a | ✗ | — | — | ✗ |
-| baseline_b | ✓ | 30 | 30 | ✓ |
-| baseline_c | ✗ | — | — | ✗ |
+| Modus | Lebt bei t=25 | A bei t=25 | Reaktivierung Schritt | Projektion Schritt | Projektion bis t=45 |
+|-------|--------------|-----------|----------------------|-------------------|---------------------|
+| main | ✓ | 0.129 | 26 | 26 | ✓ |
+| baseline_a | ✗ | 0.075 | — | — | ✗ |
+| baseline_b | ✓ | 0.129 | 26 | 26 | ✓ |
+| baseline_c | ✗ | 0.075 | — | — | ✗ |
 
 ![Experiment A](/home/user/Intuitionsemulator/output/experiment_a.png)
 
 **Schlüsselmetriken:**
 - Korrekte Reaktivierung (Hauptmodell): 1
-- Zeit bis Reaktivierung: 0 Schritte
+- Zeit bis Reaktivierung: 1 Schritte
+- A-Werte bei Schritt 25 (Diskriminierung): main: 0.1287 | baseline_a: 0.0747 | baseline_b: 0.1287 | baseline_c: 0.0747
 
 ---
 
@@ -84,7 +85,7 @@ Criteria passed: 3/3
   - exp_a_beats_baselines: True
   - exp_b_beats_baselines: True
   - exp_c_beats_baselines: True
-  - comparisons_a: {'baseline_a': 1.0, 'baseline_b': None, 'baseline_c': 1.0}
+  - comparisons_a: {'baseline_a': 1.0, 'baseline_b': 0.0, 'baseline_c': 1.0}
   - comparisons_b: {'baseline_a': 1.0, 'baseline_b': 1.0, 'baseline_c': 0.0}
   - comparisons_c: {'baseline_a': 1.0, 'baseline_b': 1.0, 'baseline_c': 0.0}
 

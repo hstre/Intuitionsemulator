@@ -73,17 +73,21 @@ def build_report(
         "",
         "## 2. Experiment A – Schwaches Signal, späte Verstärkung",
         "",
-        "| Modus | Lebt bei t=20 | Reaktivierung Schritt | Projektion Schritt | Projektion bis t=50 |",
-        "|-------|--------------|----------------------|-------------------|---------------------|",
+        "| Modus | Lebt bei t=25 | A bei t=25 | Reaktivierung Schritt | Projektion Schritt | Projektion bis t=45 |",
+        "|-------|--------------|-----------|----------------------|-------------------|---------------------|",
     ]
     for mode, res in exp_a["results"].items():
         lines.append(
-            f"| {mode} | {_fmt(res.get('alive_at_20'))} | "
+            f"| {mode} | {_fmt(res.get('alive_at_25'))} | "
+            f"{_fmt(res.get('a_at_25'))} | "
             f"{_fmt(res.get('reactivation_step'))} | "
             f"{_fmt(res.get('projection_step'))} | "
-            f"{_fmt(res.get('projection_by_50'))} |"
+            f"{_fmt(res.get('projection_by_45'))} |"
         )
 
+    a25_rows = metrics_a.get("a_at_25_all", {})
+    a25_table = " | ".join(f"{m}: {v:.4f}" if v is not None else f"{m}: —"
+                           for m, v in a25_rows.items())
     lines += [
         "",
         f"![Experiment A]({exp_a['plot']})",
@@ -91,6 +95,7 @@ def build_report(
         "**Schlüsselmetriken:**",
         f"- Korrekte Reaktivierung (Hauptmodell): {_fmt(metrics_a['correct_late_reactivation'])}",
         f"- Zeit bis Reaktivierung: {_fmt(metrics_a['avg_time_to_reactivation'])} Schritte",
+        f"- A-Werte bei Schritt 25 (Diskriminierung): {a25_table}",
         "",
         "---",
         "",
@@ -168,7 +173,7 @@ def main():
     print("[3/6] Experiment A...")
     exp_a = run_experiment_a(params, OUTPUT_DIR)
     for mode, res in exp_a["results"].items():
-        print(f"      {mode}: alive@20={res['alive_at_20']} reakt={res['reactivation_step']} proj={res['projection_step']}")
+        print(f"      {mode}: alive@25={res['alive_at_25']} A@25={res['a_at_25']:.4f} reakt={res['reactivation_step']} proj={res['projection_step']}")
 
     print("[4/6] Experiment B...")
     exp_b = run_experiment_b(params, OUTPUT_DIR)
