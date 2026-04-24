@@ -1,21 +1,20 @@
-"""Go/No-Go evaluation: checks all three criteria and emits a verdict."""
+"""Go/No-Go evaluation: checks all criteria and emits a verdict."""
 from __future__ import annotations
 from .metrics import (
     compare_main_vs_baselines_a,
     compare_main_vs_baselines_b,
     compare_main_vs_baselines_c,
+    compare_main_vs_baselines_d,
 )
 
 IMPROVEMENT_THRESHOLD = 0.20  # 20%
 
 
-def _beats_all_baselines(comparisons: dict, threshold: float = IMPROVEMENT_THRESHOLD) -> bool:
-    """True only if main beats EVERY baseline by >= threshold.
-    None (incomparable) and 0.0 (tie) both count as failure.
-    """
+def _beats_all_baselines(comparisons: dict) -> bool:
+    """True only if main wins against EVERY baseline. Tie or not_applicable = failure."""
     return all(
-        isinstance(v, float) and v >= threshold
-        for v in comparisons.values()
+        isinstance(comp, dict) and comp.get("outcome") == "win"
+        for comp in comparisons.values()
     )
 
 
@@ -25,11 +24,13 @@ def evaluate(
     metrics_c: dict,
     metrics_neg: dict,
     sweep_stable: bool,
+    metrics_d: dict | None = None,
 ) -> dict:
     """
-    Criterion 1: Main beats ALL baselines in ≥2/3 experiments by ≥20%.
+    Criterion 1: Main beats ALL baselines in >=2/3 core experiments (A, B, C) by outcome='win'.
     Criterion 2: Negative scenario reactivation <5% AND projection <5%.
     Criterion 3: Sweep stability (qualitative behavior stable at ±20% alpha/eta).
+    Experiment D is diagnostic only — not part of the core GO/NO-GO criteria.
     """
     diagnostics = {}
 
@@ -58,15 +59,15 @@ def evaluate(
 
     # --- Criterion 2 ---
     reactivation_ok = metrics_neg.get("reactivation_rate", 1.0) < 0.05
-    projection_ok = metrics_neg.get("projection_rate", 1.0) < 0.05
-    criterion_2 = reactivation_ok and projection_ok
+    projection_ok   = metrics_neg.get("projection_rate", 1.0) < 0.05
+    criterion_2     = reactivation_ok and projection_ok
 
     diagnostics["criterion_2"] = {
         "passed": criterion_2,
         "reactivation_rate": metrics_neg.get("reactivation_rate"),
-        "projection_rate": metrics_neg.get("projection_rate"),
-        "reactivation_ok": reactivation_ok,
-        "projection_ok": projection_ok,
+        "projection_rate":   metrics_neg.get("projection_rate"),
+        "reactivation_ok":   reactivation_ok,
+        "projection_ok":     projection_ok,
     }
 
     # --- Criterion 3 ---
@@ -76,7 +77,18 @@ def evaluate(
         "all_sweep_stable": sweep_stable,
     }
 
-    # --- Verdict: only GO requires all 3 criteria ---
+    # --- Experiment D diagnostic (not a criterion) ---
+    if metrics_d is not None:
+        comp_d = compare_main_vs_baselines_d(metrics_d)
+        d_beats = _beats_all_baselines(comp_d)
+        diagnostics["exp_d_diagnostic"] = {
+            "combination_effect_found": d_beats,
+            "comparisons_d": comp_d,
+            "main_success_d": metrics_d.get("success_d_main", False),
+            "baseline_success_d": metrics_d.get("baseline_success_d", {}),
+        }
+
+    # --- Verdict: GO only if all 3 criteria pass ---
     criteria_passed = sum([criterion_1, criterion_2, criterion_3])
     verdict = "GO" if criteria_passed == 3 else "NO_GO"
 
@@ -84,7 +96,7 @@ def evaluate(
     if not criterion_1:
         failed.append(
             f"Criterion 1: Main model beats all baselines in only {beaten_count}/3 experiments "
-            f"(need ≥2, each with ≥{IMPROVEMENT_THRESHOLD:.0%} margin against every baseline)"
+            f"(need >=2, each with outcome='win' against every baseline)"
         )
     if not criterion_2:
         failed.append(
@@ -116,8 +128,34 @@ def format_verdict(result: dict) -> str:
         status = "✓ PASS" if d["passed"] else "✗ FAIL"
         lines.append(f"### {key.replace('_', ' ').title()} – {status}")
         for k, v in d.items():
-            if k != "passed":
+            if k == "passed":
+                continue
+            if isinstance(v, dict):
+                lines.append(f"  - {k}:")
+                for bname, comp in v.items():
+                    if isinstance(comp, dict):
+                        lines.append(
+                            f"    - {bname}: outcome={comp.get('outcome')} "
+                            f"metric={comp.get('metric')} margin={comp.get('margin')}"
+                        )
+                    else:
+                        lines.append(f"    - {bname}: {comp}")
+            else:
                 lines.append(f"  - {k}: {v}")
+        lines.append("")
+
+    # Experiment D diagnostic
+    if "exp_d_diagnostic" in diag:
+        d = diag["exp_d_diagnostic"]
+        effect = "FOUND" if d.get("combination_effect_found") else "NOT FOUND"
+        lines.append(f"### Experiment D Diagnostic – Combination Effect: **{effect}**")
+        lines.append(f"  - main success_d: {d.get('main_success_d')}")
+        for bname, ok in d.get("baseline_success_d", {}).items():
+            comp = d.get("comparisons_d", {}).get(bname, {})
+            lines.append(
+                f"  - {bname}: success={ok} outcome={comp.get('outcome')} "
+                f"metric={comp.get('metric')} margin={comp.get('margin')}"
+            )
         lines.append("")
 
     if result["failed_criteria"]:

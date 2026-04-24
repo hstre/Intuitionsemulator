@@ -41,6 +41,8 @@ def compute_feedback(claim: ClaimState, context_signal: float, params: dict, mod
         return 0.0
     if claim.status == "verworfen":
         return 0.0
+    if claim.verifier_exempt:  # reference/background claims don't receive reactivation feedback
+        return 0.0
 
     verifier_penalty = max(0.0, -claim.last_n_verifier_sum(3))
     score = (
@@ -118,8 +120,15 @@ def update_claim(
     # Record verifier signal
     claim.record_verifier(V)
 
-    # Status logic
-    if hard_reject or claim.A <= params["theta_dead"]:
+    # Status logic — hard reject requires 3 consecutive V=-1 in history, or A<0.3
+    effective_hard = False
+    if hard_reject:
+        recent_3 = claim.verifier_history[-3:]
+        effective_hard = (
+            len(recent_3) >= 3 and all(v == -1 for v in recent_3)
+        ) or (claim.A < 0.3)
+
+    if effective_hard or claim.A <= params["theta_dead"]:
         claim.status = "verworfen"
     elif claim.A >= params["theta_active"]:
         claim.status = "aktiv"

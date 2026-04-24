@@ -6,7 +6,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Make package importable from repo root
 sys.path.insert(0, str(Path(__file__).parent))
 
 from intuition_emulator.core.system import load_params
@@ -14,109 +13,99 @@ from intuition_emulator.experiments.stability_check import run_stability_check, 
 from intuition_emulator.experiments.experiment_a import run_experiment_a
 from intuition_emulator.experiments.experiment_b import run_experiment_b
 from intuition_emulator.experiments.experiment_c import run_experiment_c
+from intuition_emulator.experiments.experiment_d import run_experiment_d
 from intuition_emulator.experiments.negative_scenario import run_negative_scenario
 from intuition_emulator.evaluation.metrics import (
-    extract_metrics_a, extract_metrics_b, extract_metrics_c, extract_metrics_negative,
+    extract_metrics_a, extract_metrics_b, extract_metrics_c,
+    extract_metrics_d, extract_metrics_negative,
 )
 from intuition_emulator.evaluation.go_no_go import evaluate, format_verdict
 
 OUTPUT_DIR = Path(__file__).parent / "output"
 
-# Section 0: iteration history (static text, updated manually per run)
 _SECTION_0 = """\
 ## 0. Zusammenfassung der Iterationen
 
-Dieser Prototyp wurde in drei Durchläufen entwickelt:
+Dieser Prototyp wurde in vier Durchläufen entwickelt:
 
 **Durchlauf 1:** Erster Aufbau mit 25 Schritten Totzeit in Experiment A
-(später als zu kurz erkannt, Reaktivierung fiel mit Kontexteinsatz
-zusammen). Go/No-Go-Logik nutzte `any()` über Baselines und gab GO
-trotz fehlender Siege gegen Baseline B und C aus. Auswertungslogik
-war in mehreren Stellen freundlich parametrisiert (max() über
-Teilmetriken, None-Handling als Tie).
+(später als zu kurz erkannt). Go/No-Go-Logik nutzte `any()` statt `all()`.
 
-**Durchlauf 2:** Bewertungslogik verschärft (success_a binär,
-Experiment B lexikographisch über drei Metriken, Experiment C
-precision-first ohne max-Aggregation). Experiment A umgebaut auf
-echte Totzeit von 25 Schritten. A-Werte bei t=25 werden explizit
-ausgewiesen und zeigen messbare Diskriminierung zwischen
-Hauptmodell/Baseline B (A=0.129) und Baselines A/C (A=0.075).
+**Durchlauf 2:** Bewertungslogik verschärft (success_a binär, Experiment B
+lexikographisch). Experiment A auf echte 25-Schritt-Totzeit umgebaut.
 
-**Durchlauf 3 (dieser):** Go/No-Go-Logik korrekt mit all() statt any().
-Baselines A' und C' mit H=12 als Robustheitstest ergänzt.
-Diagnostischer Befund zur disjunkten Wirkung der beiden
-Modellkomponenten hinzugefügt. Ehrliches NO-GO-Verdikt mit
-inhaltlicher Begründung, warum dieser Negativbefund ein sinnvolles
-Forschungsergebnis darstellt.
+**Durchlauf 3:** Go/No-Go-Logik korrekt mit `all()`. Baselines A' und C' mit
+H=12 als Robustheitstest. Diagnostischer Befund zur disjunkten Wirkung der
+beiden Modellkomponenten hinzugefügt. Ehrliches NO-GO-Verdikt.
+
+**Durchlauf 4 (dieser):** Experiment A auf 50-Schritt-Totzeit mit E=0.01
+(physikalisch korrekte Diskriminierung). ComparisonResult-Schema eingeführt
+(outcome/metric/margin statt roher Floats). Verifier-Logik graduiert (Hard
+Reject erst nach 3 konsekutiven V=-1 oder A<0.3). Experiment D als
+Kombinationseffekt-Test neu hinzugefügt. Verdikt bleibt NO-GO.
 
 ---
 """
 
-# Section 7: diagnostic findings (static text)
 _SECTION_7 = """\
 ## 7. Diagnostischer Befund
 
-Die Auswertung zeigt ein klares Muster, das über das reine GO/NO-GO-Verdikt
-hinausgeht und wissenschaftlich festgehalten werden muss.
-
 ### 7.1 Halbwertszeit wirkt in Experiment A
 
-In Experiment A (subschwellige Konservierung über 25 Schritte ohne Input)
-zeigen Hauptmodell und Baseline B (H=f(P), kein Feedback) identische
-Ergebnisse: A=0.129 bei t=25, Reaktivierung in Schritt 26, Projektion
-in Schritt 26. Beide schlagen Baselines A und C (H=konstant=8), die unter
-theta_dead fallen.
-
-**Robustheitstest (Baselines A' und C' mit H=12):**
-Baseline A' (H=12, kein Feedback) überlebt die 25-Schritt-Totzeit mit
-A=0.151 > Hauptmodell (A=0.129). H=f(P)≈10.8 liegt also zwischen H=8
-(stirbt) und H=12 (überlebt mit mehr Reserve als das Hauptmodell). Der
-Effekt der plausibilitätsabhängigen Halbwertszeit ist real – aber nicht
-einzigartig. Ein konstantes H=12 würde in diesem Experiment gleich gut
-oder besser abschneiden. Der Effekt ist somit parameterabhängig.
-
-Befund: Plausibilitätsabhängige Halbwertszeit ist in diesem Experiment
-der wirksame Mechanismus. Feedback trägt nichts bei. Der Effekt ist
-jedoch nicht exklusiv für H=f(P): H=const=12 erzielt denselben Outcome.
+In Experiment A (50 Schritte Totzeit, E=0.01) überleben Hauptmodell und
+Baseline B (H=f(P)≈10.8, kein Feedback), während Baselines A und C (H=8)
+bei Schritt ~36 verworfen werden. A*-Gleichgewicht: H=8→0.060, H=10.8→0.081,
+H=12→0.089. Der Effekt ist real aber nicht einzigartig: H=12 (A'/C') erzielt
+denselben Outcome.
 
 ### 7.2 Feedback wirkt in Experimenten B und C
 
-In Experiment B (falscher Dominator) und Experiment C (selektive
-Reaktivierung) zeigen Hauptmodell und Baseline C (H=konstant=8, mit Feedback)
-sowie Baseline C' (H=konstant=12, mit Feedback) identische Ergebnisse.
-Alle drei schlagen Baselines A, B und A' (kein Feedback).
+In Experiment B (falscher Dominator) und Experiment C (selektive Reaktivierung)
+sind Hauptmodell, Baseline C (H=8, F) und Baseline C' (H=12, F) äquivalent.
+Baselines A, B, A' (kein Feedback) schlagen fehl.
 
-Befund: Selektive Reaktivierung ist in diesen Experimenten der wirksame
-Mechanismus. Plausibilitätsabhängige Halbwertszeit trägt nichts bei.
+### 7.3 Kein nachweisbarer Kombinationseffekt in Experimenten A–C
 
-### 7.3 Kein nachweisbarer Kombinationseffekt
+In keinem der drei Kernexperimente schlägt das Hauptmodell gleichzeitig
+Baseline B und Baseline C. Die Mechanismen wirken in disjunkten Szenarien.
 
-In keinem der drei Experimente schlägt das Hauptmodell gleichzeitig
-Baseline B und Baseline C. Die beiden Mechanismen wirken in disjunkten
-Experimenten, aber nicht additiv in einem gemeinsamen Experiment.
+### 7.4 Experiment D: Kombinationseffekt-Test (Langzeit-Kette)
 
-Konsequenz: Die ursprüngliche Modellhypothese – dass die Kombination
-aus plausibilitätsabhängiger Halbwertszeit und selektiver Reaktivierung
-qualitativ mehr leistet als die Einzelkomponenten – wird durch den
-Prototyp nicht gestützt. Für die getesteten Szenarien reichen die
-Einzelkomponenten aus.
+Experiment D testet, ob der Kombinationseffekt auf längeren Zeitskalen (120
+Schritte, späte Kontextaktivierung ab Schritt 80) erscheint. Ein Claim muss
+sowohl 40 Schritte Totzeit überleben (H-Test) als auch reaktiviert werden (F-Test).
 
-### 7.4 Mögliche Ursachen
+Ergebnis (proj_speed = Schritte bis Projektion nach Kontextstart):
+- Hauptmodell: proj_speed=1 (F liefert sofortige Reaktivierung)
+- Baseline B (H=f(P), kein F): proj_speed=2 — überlebt Totzeit, reaktiviert sich
+  langsamer via K+E. F gibt dem Hauptmodell einen Geschwindigkeitsvorteil (50%).
+- Baseline A' (H=12, kein F): proj_speed=2 — identisch zu Baseline B.
+- Baseline C' (H=12, mit F): proj_speed=1 — gleich schnell wie Hauptmodell.
 
-Drei Interpretationen sind mit den Daten vereinbar:
+Befund: F liefert gegenüber Baselines ohne F einen messbaren Geschwindigkeits-
+vorteil (1 Schritt = 50% margin > 20%-Schwelle). Aber Baseline C' (H=12+F)
+erzielt denselben Outcome wie das Hauptmodell. Die plausibilitätsabhängige
+Halbwertszeit leistet keinen zusätzlichen Beitrag über H=12+F hinaus. Das
+Hauptmodell schlägt Baselines A, B, C, A' — aber nicht C' — in Experiment D.
+Da _beats_all_baselines_ alle gewinnen muss, wird kein Kombinationseffekt
+registriert. Ergebnis bleibt NO-GO.
 
-1. Die Kombinationswirkung existiert, wird aber von den gewählten
-   Experimenten nicht getestet. Ein Experiment, in dem ein Claim
-   sowohl subschwellig konserviert als auch durch Feedback reaktiviert
-   werden muss, fehlt im aktuellen Testaufbau.
+**Konsequenz:** Die ursprüngliche Hypothese — dass die Kombination aus
+plausibilitätsabhängiger Halbwertszeit und selektiver Reaktivierung mehr
+leistet als die Einzelkomponenten — wird durch alle vier Experimente nicht
+gestützt. Die Mechanismen sind orthogonal für verschiedene Aufgabenklassen.
 
-2. Die Kombinationswirkung existiert nicht. Halbwertszeit und Feedback
-   sind orthogonale Mechanismen für verschiedene Aufgabenklassen und
-   sollten in einem Zielmodell möglicherweise modular getrennt werden.
+### 7.5 Mögliche Ursachen
 
-3. Die Kombinationswirkung existiert, wird aber durch die Parameter-
-   wahl maskiert. Die aktuellen Gewichte w1-w5 und die Feedback-
-   Parameter r1-r5 erlauben keinen sichtbaren synergistischen Effekt.
+1. Die Kombinationswirkung existiert, wird aber von den gewählten Experimenten
+   nicht getestet. Ein Experiment mit höherem Rauschen, stärkerem Verifier-
+   Druck oder mehreren konkurrierenden Kontext-Claims fehlt im Testaufbau.
+
+2. Die Kombinationswirkung existiert nicht. H und F sind orthogonale Mechanismen
+   und sollten im Zielmodell modular getrennt werden.
+
+3. Die Parameterwahl maskiert den synergistischen Effekt. Mit anderen w1-w5,
+   r1-r5 oder theta_reactivate-Werten könnte der Effekt messbar sein.
 
 Welche der drei Interpretationen zutrifft, kann dieser Prototyp nicht
 entscheiden.
@@ -133,19 +122,39 @@ def _fmt(val) -> str:
     return str(val)
 
 
+def _fmt_cr(comp: dict) -> str:
+    if not isinstance(comp, dict):
+        return str(comp)
+    outcome = comp.get("outcome", "?")
+    metric  = comp.get("metric", "?")
+    margin  = comp.get("margin")
+    m_str   = f"{margin:.2f}" if isinstance(margin, float) else "—"
+    symbol  = {"win": "✓", "loss": "✗", "tie": "~", "not_applicable": "n/a"}.get(outcome, "?")
+    return f"{symbol} {outcome} ({metric}, Δ={m_str})"
+
+
 def build_report(
     stability_result: dict,
     sweep_result: dict,
     exp_a: dict,
     exp_b: dict,
     exp_c: dict,
+    exp_d: dict,
     neg: dict,
     metrics_a: dict,
     metrics_b: dict,
     metrics_c: dict,
+    metrics_d: dict,
     metrics_neg: dict,
     verdict_result: dict,
 ) -> str:
+    from intuition_emulator.evaluation.metrics import (
+        compare_main_vs_baselines_a,
+        compare_main_vs_baselines_b,
+        compare_main_vs_baselines_c,
+        compare_main_vs_baselines_d,
+    )
+
     lines = [
         "# Intuitionsemulator – Forschungsprototyp Bericht",
         "",
@@ -172,25 +181,30 @@ def build_report(
         "",
         "---",
         "",
-        "## 2. Experiment A – H=f(P)-Diskriminierung (25-Schritt-Totzeit)",
+        "## 2. Experiment A – H=f(P)-Diskriminierung (50-Schritt-Totzeit, E=0.01)",
         "",
+        "**Erfolgsdefinition:** Hauptmodell überlebt Totzeit (alive_at_50) UND",
+        "reaktiviert sich im Fenster 50-70 UND projiziert bis Schritt 80.",
         "Baselines A/C: H=const=8.0 · Baselines A'/C': H=const=12.0 (Robustheitstest)",
         "",
-        "| Modus | Lebt bei t=25 | A bei t=25 | Reaktivierung Schritt | Projektion Schritt | Projektion bis t=45 |",
+        "| Modus | Lebt bei t=50 | A bei t=50 | Reaktivierung Schritt | Projektion Schritt | Projektion bis t=80 |",
         "|-------|:------------:|:---------:|:--------------------:|:-----------------:|:-------------------:|",
     ]
     for mode, res in exp_a["results"].items():
         lines.append(
-            f"| {mode} | {_fmt(res.get('alive_at_25'))} | "
-            f"{_fmt(res.get('a_at_25'))} | "
+            f"| {mode} | {_fmt(res.get('alive_at_50'))} | "
+            f"{_fmt(res.get('a_at_50'))} | "
             f"{_fmt(res.get('reactivation_step'))} | "
             f"{_fmt(res.get('projection_step'))} | "
-            f"{_fmt(res.get('projection_by_45'))} |"
+            f"{_fmt(res.get('projection_by_80'))} |"
         )
 
-    a25_rows = metrics_a.get("a_at_25_all", {})
-    a25_table = " | ".join(f"{m}: {v:.4f}" if v is not None else f"{m}: —"
-                           for m, v in a25_rows.items())
+    comp_a = compare_main_vs_baselines_a(metrics_a)
+    a50_rows = metrics_a.get("a_at_50_all", {})
+    a50_table = " | ".join(
+        f"{m}: {v:.4f}" if v is not None else f"{m}: —"
+        for m, v in a50_rows.items()
+    )
     lines += [
         "",
         f"![Experiment A]({exp_a['plot']})",
@@ -198,11 +212,25 @@ def build_report(
         "**Schlüsselmetriken:**",
         f"- Korrekte Reaktivierung (Hauptmodell): {_fmt(metrics_a['correct_late_reactivation'])}",
         f"- Zeit bis Reaktivierung: {_fmt(metrics_a['avg_time_to_reactivation'])} Schritte",
-        f"- A-Werte bei Schritt 25 (Diskriminierung): {a25_table}",
+        f"- A-Werte bei Schritt 50 (Diskriminierung): {a50_table}",
+        "",
+        "**Vergleich Hauptmodell vs. Baselines:**",
+        "",
+        "| Baseline | Ergebnis |",
+        "|----------|---------|",
+    ]
+    for bname, comp in comp_a.items():
+        lines.append(f"| {bname} | {_fmt_cr(comp)} |")
+
+    lines += [
         "",
         "---",
         "",
         "## 3. Experiment B – Falscher Dominator + History-basierte Erholung",
+        "",
+        "**Erfolgsdefinition:** Hauptmodell gewinnt gegen alle Baselines in",
+        "mindestens einer der drei Metriken (dominant_dead, false_proj, recovery_time)",
+        "um ≥20%, ohne in einer anderen Metrik >20% schlechter zu sein.",
         "",
         "| Modus | Dominator verworfen Schritt | Falsche Projektionen | Erholungszeit |",
         "|-------|:-------------------------:|:-------------------:|:------------:|",
@@ -214,13 +242,27 @@ def build_report(
             f"{_fmt(res.get('recovery_time'))} |"
         )
 
+    comp_b = compare_main_vs_baselines_b(metrics_b)
     lines += [
         "",
         f"![Experiment B]({exp_b['plot']})",
         "",
+        "**Vergleich Hauptmodell vs. Baselines:**",
+        "",
+        "| Baseline | Ergebnis |",
+        "|----------|---------|",
+    ]
+    for bname, comp in comp_b.items():
+        lines.append(f"| {bname} | {_fmt_cr(comp)} |")
+
+    lines += [
+        "",
         "---",
         "",
         "## 4. Experiment C – Selektive Reaktivierung",
+        "",
+        "**Erfolgsdefinition:** Hauptmodell gewinnt primär durch höhere Präzision (≥20%",
+        "besser). Geschwindigkeit nur als Tiebreaker, wenn Präzision gebunden (±20%).",
         "",
         "| Modus | Korrekte Reaktivierungen | Unnötige | Präzision | Proj.-Geschwindigkeit |",
         "|-------|:-----------------------:|:-------:|:--------:|:--------------------:|",
@@ -233,9 +275,20 @@ def build_report(
             f"{_fmt(res.get('proj_speed'))} |"
         )
 
+    comp_c = compare_main_vs_baselines_c(metrics_c)
     lines += [
         "",
         f"![Experiment C]({exp_c['plot']})",
+        "",
+        "**Vergleich Hauptmodell vs. Baselines:**",
+        "",
+        "| Baseline | Ergebnis |",
+        "|----------|---------|",
+    ]
+    for bname, comp in comp_c.items():
+        lines.append(f"| {bname} | {_fmt_cr(comp)} |")
+
+    lines += [
         "",
         "---",
         "",
@@ -256,6 +309,48 @@ def build_report(
         "",
         "---",
         "",
+        "## 7. Experiment D – Kombinationseffekt-Test (Langzeit-Kette)",
+        "",
+        "**Design:** 4 Claims (target, dominant, distractor, support), 120 Schritte,",
+        "späte Kontextaktivierung ab Schritt 80. Target muss 40 Schritte Totzeit",
+        "überleben (H-Test) UND dann durch Feedback reaktiviert werden (F-Test).",
+        "",
+        "**Erfolgsbedingungen (success_d):** alle 5 müssen erfüllt sein:",
+        "1. target nicht verworfen bei t=79",
+        "2. target kein Frühprojekt vor t=80",
+        "3. dominant.A < theta_active bei t=79",
+        "4. target reaktiviert sich ab Schritt 80",
+        "5. target projiziert bis Schritt 110",
+        "",
+        "| Modus | success_d | A target@79 | A dominant@79 | Reaktiv. Schritt | Proj. Schritt |",
+        "|-------|:---------:|:-----------:|:-------------:|:----------------:|:------------:|",
+    ]
+    for mode, res in exp_d["results"].items():
+        lines.append(
+            f"| {mode} | {_fmt(res.get('success_d'))} | "
+            f"{_fmt(res.get('a_target_at_dormancy'))} | "
+            f"{_fmt(res.get('a_dominant_at_dormancy'))} | "
+            f"{_fmt(res.get('reactivation_step'))} | "
+            f"{_fmt(res.get('proj_step'))} |"
+        )
+
+    comp_d = compare_main_vs_baselines_d(metrics_d)
+    lines += [
+        "",
+        f"![Experiment D]({exp_d['plot']})",
+        "",
+        "**Vergleich Hauptmodell vs. Baselines:**",
+        "",
+        "| Baseline | Ergebnis |",
+        "|----------|---------|",
+    ]
+    for bname, comp in comp_d.items():
+        lines.append(f"| {bname} | {_fmt_cr(comp)} |")
+
+    lines += [
+        "",
+        "---",
+        "",
         _SECTION_7,
     ]
 
@@ -264,60 +359,81 @@ def build_report(
 
 def main():
     print("=" * 60)
-    print("Intuitionsemulator – Vollständiger Durchlauf (Durchlauf 3)")
+    print("Intuitionsemulator – Vollständiger Durchlauf (Durchlauf 4)")
     print("=" * 60)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     params = load_params()
 
-    print("\n[1/6] Stabilitätsprüfung...")
+    print("\n[1/7] Stabilitätsprüfung...")
     stability_result = run_stability_check(params, OUTPUT_DIR)
     print(f"      Konvergenz: {stability_result['claim_results']}")
 
-    print("[2/6] Parameter-Sweep...")
+    print("[2/7] Parameter-Sweep...")
     sweep_result = run_parameter_sweep(params, OUTPUT_DIR)
     print(f"      Alle stabil: {sweep_result['all_stable']}")
 
-    print("[3/6] Experiment A...")
+    print("[3/7] Experiment A (50-Schritt-Totzeit, E=0.01)...")
     exp_a = run_experiment_a(params, OUTPUT_DIR)
     for mode, res in exp_a["results"].items():
-        print(f"      {mode}: alive@25={res['alive_at_25']} A@25={res['a_at_25']:.4f} reakt={res['reactivation_step']} proj={res['projection_step']}")
+        print(f"      {mode}: alive@50={res['alive_at_50']} A@50={res['a_at_50']:.4f} "
+              f"reakt={res['reactivation_step']} proj={res['projection_step']}")
 
-    print("[4/6] Experiment B...")
+    print("[4/7] Experiment B...")
     exp_b = run_experiment_b(params, OUTPUT_DIR)
     for mode, res in exp_b["results"].items():
-        print(f"      {mode}: dom_dead={res['dominant_dead_step']} false_proj={res['false_projections']} recovery={res['recovery_time']}")
+        print(f"      {mode}: dom_dead={res['dominant_dead_step']} "
+              f"false_proj={res['false_projections']} recovery={res['recovery_time']}")
 
-    print("[5/6] Experiment C...")
+    print("[5/7] Experiment C...")
     exp_c = run_experiment_c(params, OUTPUT_DIR)
     for mode, res in exp_c["results"].items():
-        print(f"      {mode}: correct={res['reactivated_correct']} unnecessary={res['unnecessary_reactivations']} prec={res['precision']:.2f} proj_speed={res['proj_speed']}")
+        print(f"      {mode}: correct={res['reactivated_correct']} "
+              f"unnecessary={res['unnecessary_reactivations']} "
+              f"prec={res['precision']:.2f} proj_speed={res['proj_speed']}")
 
-    print("[6/6] Negativszenario...")
+    print("[6/7] Experiment D (Kombinationseffekt-Test)...")
+    exp_d = run_experiment_d(params, OUTPUT_DIR)
+    for mode, res in exp_d["results"].items():
+        print(f"      {mode}: success={res['success_d']} "
+              f"A_target@79={res['a_target_at_dormancy']} "
+              f"proj_speed={res['proj_speed']}")
+
+    print("[7/7] Negativszenario...")
     neg = run_negative_scenario(params, OUTPUT_DIR)
-    print(f"      Reaktivierung: {neg['reactivation_rate']:.1%}, Projektion: {neg['projection_rate']:.1%}, Bestanden: {neg['passes']}")
+    print(f"      Reaktivierung: {neg['reactivation_rate']:.1%}, "
+          f"Projektion: {neg['projection_rate']:.1%}, Bestanden: {neg['passes']}")
 
     # Extract metrics
-    metrics_a = extract_metrics_a(exp_a["results"])
-    metrics_b = extract_metrics_b(exp_b["results"])
-    metrics_c = extract_metrics_c(exp_c["results"])
+    metrics_a   = extract_metrics_a(exp_a["results"])
+    metrics_b   = extract_metrics_b(exp_b["results"])
+    metrics_c   = extract_metrics_c(exp_c["results"])
+    metrics_d   = extract_metrics_d(exp_d["results"])
     metrics_neg = extract_metrics_negative(neg)
 
     # Go/No-Go
-    verdict_result = evaluate(metrics_a, metrics_b, metrics_c, metrics_neg, sweep_result["all_stable"])
+    verdict_result = evaluate(
+        metrics_a, metrics_b, metrics_c, metrics_neg,
+        sweep_result["all_stable"],
+        metrics_d=metrics_d,
+    )
 
     print("\n" + "=" * 60)
     print(f"VERDIKT: {verdict_result['verdict']}")
     print(f"Kriterien bestanden: {verdict_result['criteria_passed']}/3")
     for msg in verdict_result.get("failed_criteria", []):
         print(f"  FEHLER: {msg}")
+    exp_d_diag = verdict_result["diagnostics"].get("exp_d_diagnostic", {})
+    if exp_d_diag:
+        effect = "GEFUNDEN" if exp_d_diag.get("combination_effect_found") else "NICHT GEFUNDEN"
+        print(f"  Exp D Kombinationseffekt: {effect}")
     print("=" * 60)
 
     # Build and save report
     report = build_report(
         stability_result, sweep_result,
-        exp_a, exp_b, exp_c, neg,
-        metrics_a, metrics_b, metrics_c, metrics_neg,
+        exp_a, exp_b, exp_c, exp_d, neg,
+        metrics_a, metrics_b, metrics_c, metrics_d, metrics_neg,
         verdict_result,
     )
     report_path = Path(__file__).parent / "report.md"
