@@ -1,0 +1,17 @@
+# Tag pairs that are mutually exclusive (contradictory)
+contradiction_pairs:
+  - [rot, gruen]
+  - [aktiv, inaktiv]
+  - [hoch, niedrig]
+  - [positiv, negativ]
+  - [schnell, langsam]
+  - [dominant_wrong, oracle_correct]
+  - [B_correct, B_wrong]
+
+# Tag pairs where one supports the other
+support_pairs:
+  - [bestaetigt, verlässlich]
+  - [kontextuell, relevant]
+  - [passend, kompatibel]
+  - [A_correct, kontextuell]
+  - [B_correct, kontextuell]
