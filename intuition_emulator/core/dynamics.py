@@ -24,20 +24,21 @@ def compute_stability(P_history: list, window: int) -> float:
 
 
 def compute_half_life(P: float, params: dict, mode: str) -> float:
-    """H = H_min + (H_max - H_min) * P  (main model and baseline B).
-    Baselines A/C use H_const = (H_min+H_max)/2 = 8.0.
-    Baselines A'/C' use H_const_prime = 12.0 (robustness test).
+    """H = H_min + (H_max - H_min) * P  (main, baseline_b, persistence_only).
+    H = (H_min+H_max)/2 = 8.0  for baseline_a/c and feedback_only_h8.
+    H = 12.0                    for baseline_a'/c' and feedback_only_h12.
     """
-    if mode in ("baseline_a", "baseline_c"):
+    if mode in ("baseline_a", "baseline_c", "feedback_only_h8"):
         return (params["h_min"] + params["h_max"]) / 2.0
-    if mode in ("baseline_a_prime", "baseline_c_prime"):
+    if mode in ("baseline_a_prime", "baseline_c_prime", "feedback_only_h12"):
         return 12.0
+    # main, baseline_b, persistence_only — plausibility-dependent
     return params["h_min"] + (params["h_max"] - params["h_min"]) * P
 
 
 def compute_feedback(claim: ClaimState, context_signal: float, params: dict, mode: str) -> float:
-    """Reactivation feedback F.  Zero for baselines A, A' and B."""
-    if mode in ("baseline_a", "baseline_b", "baseline_a_prime"):
+    """Reactivation feedback F.  Zero for baselines A, A', B and persistence_only."""
+    if mode in ("baseline_a", "baseline_b", "baseline_a_prime", "persistence_only"):
         return 0.0
     if claim.status == "verworfen":
         return 0.0

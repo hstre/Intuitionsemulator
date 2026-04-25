@@ -14,11 +14,16 @@ lexikographisch). Experiment A auf echte 25-Schritt-Totzeit umgebaut.
 H=12 als Robustheitstest. Diagnostischer Befund zur disjunkten Wirkung der
 beiden Modellkomponenten hinzugefügt. Ehrliches NO-GO-Verdikt.
 
-**Durchlauf 4 (dieser):** Experiment A auf 50-Schritt-Totzeit mit E=0.01
+**Durchlauf 4:** Experiment A auf 50-Schritt-Totzeit mit E=0.01
 (physikalisch korrekte Diskriminierung). ComparisonResult-Schema eingeführt
 (outcome/metric/margin statt roher Floats). Verifier-Logik graduiert (Hard
 Reject erst nach 3 konsekutiven V=-1 oder A<0.3). Experiment D als
 Kombinationseffekt-Test neu hinzugefügt. Verdikt bleibt NO-GO.
+
+**Durchlauf 5 (dieser):** Persistenz- und Feedback-Mechanismus als separate
+Vergleichsmodi (`persistence_only`, `feedback_only_h8`, `feedback_only_h12`)
+parallel zu allen Experimenten ausgeführt. Systematischer Vergleich per
+Experiment und übergreifende Mechanismus-Klassifikation (Abschnitte 8–9).
 
 ---
 
@@ -56,13 +61,16 @@ Baselines A/C: H=const=8.0 · Baselines A'/C': H=const=12.0 (Robustheitstest)
 | baseline_c | ✗ | 0.078 | — | — | ✗ |
 | baseline_a_prime | ✓ | 0.119 | 51 | 51 | ✓ |
 | baseline_c_prime | ✓ | 0.119 | 51 | 51 | ✓ |
+| persistence_only | ✓ | 0.103 | 51 | 51 | ✓ |
+| feedback_only_h8 | ✗ | 0.078 | — | — | ✗ |
+| feedback_only_h12 | ✓ | 0.119 | 51 | 51 | ✓ |
 
 ![Experiment A](/home/user/Intuitionsemulator/output/experiment_a.png)
 
 **Schlüsselmetriken:**
 - Korrekte Reaktivierung (Hauptmodell): 1
 - Zeit bis Reaktivierung: 1 Schritte
-- A-Werte bei Schritt 50 (Diskriminierung): main: 0.1031 | baseline_a: 0.0784 | baseline_b: 0.1031 | baseline_c: 0.0784 | baseline_a_prime: 0.1193 | baseline_c_prime: 0.1193
+- A-Werte bei Schritt 50 (Diskriminierung): main: 0.1031 | baseline_a: 0.0784 | baseline_b: 0.1031 | baseline_c: 0.0784 | baseline_a_prime: 0.1193 | baseline_c_prime: 0.1193 | persistence_only: 0.1031 | feedback_only_h8: 0.0784 | feedback_only_h12: 0.1193
 
 **Vergleich Hauptmodell vs. Baselines:**
 
@@ -73,6 +81,9 @@ Baselines A/C: H=const=8.0 · Baselines A'/C': H=const=12.0 (Robustheitstest)
 | baseline_c | ✓ win (alive_at_50, Δ=1.00) |
 | baseline_a_prime | ~ tie (reactivation_time, Δ=0.00) |
 | baseline_c_prime | ~ tie (reactivation_time, Δ=0.00) |
+| persistence_only | ~ tie (reactivation_time, Δ=0.00) |
+| feedback_only_h8 | ✓ win (alive_at_50, Δ=1.00) |
+| feedback_only_h12 | ~ tie (reactivation_time, Δ=0.00) |
 
 ---
 
@@ -90,6 +101,9 @@ um ≥20%, ohne in einer anderen Metrik >20% schlechter zu sein.
 | baseline_c | 2 | 2 | 23 |
 | baseline_a_prime | 2 | 1 | — |
 | baseline_c_prime | 2 | 2 | 23 |
+| persistence_only | 2 | 1 | — |
+| feedback_only_h8 | 2 | 2 | 23 |
+| feedback_only_h12 | 2 | 2 | 23 |
 
 ![Experiment B](/home/user/Intuitionsemulator/output/experiment_b.png)
 
@@ -102,6 +116,9 @@ um ≥20%, ohne in einer anderen Metrik >20% schlechter zu sein.
 | baseline_c | ~ tie (dominant_dead, Δ=0.00) |
 | baseline_a_prime | ~ tie (false_proj, Δ=1.00) |
 | baseline_c_prime | ~ tie (dominant_dead, Δ=0.00) |
+| persistence_only | ~ tie (false_proj, Δ=1.00) |
+| feedback_only_h8 | ~ tie (dominant_dead, Δ=0.00) |
+| feedback_only_h12 | ~ tie (dominant_dead, Δ=0.00) |
 
 ---
 
@@ -118,6 +135,9 @@ besser). Geschwindigkeit nur als Tiebreaker, wenn Präzision gebunden (±20%).
 | baseline_c | 1 | 0 | 1.000 | 3 |
 | baseline_a_prime | 1 | 0 | 1.000 | — |
 | baseline_c_prime | 1 | 0 | 1.000 | 3 |
+| persistence_only | 0 | 0 | 0.000 | — |
+| feedback_only_h8 | 1 | 0 | 1.000 | 3 |
+| feedback_only_h12 | 1 | 0 | 1.000 | 3 |
 
 ![Experiment C](/home/user/Intuitionsemulator/output/experiment_c.png)
 
@@ -130,6 +150,9 @@ besser). Geschwindigkeit nur als Tiebreaker, wenn Präzision gebunden (±20%).
 | baseline_c | ~ tie (precision+speed, Δ=0.00) |
 | baseline_a_prime | ✓ win (proj_speed, Δ=1.00) |
 | baseline_c_prime | ~ tie (precision+speed, Δ=0.00) |
+| persistence_only | ✓ win (precision, Δ=1.00) |
+| feedback_only_h8 | ~ tie (precision+speed, Δ=0.00) |
+| feedback_only_h12 | ~ tie (precision+speed, Δ=0.00) |
 
 ---
 
@@ -160,18 +183,27 @@ Criteria passed: 2/3
     - baseline_c: outcome=win metric=alive_at_50 margin=1.0
     - baseline_a_prime: outcome=tie metric=reactivation_time margin=0.0
     - baseline_c_prime: outcome=tie metric=reactivation_time margin=0.0
+    - persistence_only: outcome=tie metric=reactivation_time margin=0.0
+    - feedback_only_h8: outcome=win metric=alive_at_50 margin=1.0
+    - feedback_only_h12: outcome=tie metric=reactivation_time margin=0.0
   - comparisons_b:
     - baseline_a: outcome=tie metric=false_proj margin=1.0
     - baseline_b: outcome=tie metric=false_proj margin=1.0
     - baseline_c: outcome=tie metric=dominant_dead margin=0.0
     - baseline_a_prime: outcome=tie metric=false_proj margin=1.0
     - baseline_c_prime: outcome=tie metric=dominant_dead margin=0.0
+    - persistence_only: outcome=tie metric=false_proj margin=1.0
+    - feedback_only_h8: outcome=tie metric=dominant_dead margin=0.0
+    - feedback_only_h12: outcome=tie metric=dominant_dead margin=0.0
   - comparisons_c:
     - baseline_a: outcome=win metric=precision margin=1.0
     - baseline_b: outcome=win metric=precision margin=1.0
     - baseline_c: outcome=tie metric=precision+speed margin=0.0
     - baseline_a_prime: outcome=win metric=proj_speed margin=1.0
     - baseline_c_prime: outcome=tie metric=precision+speed margin=0.0
+    - persistence_only: outcome=win metric=precision margin=1.0
+    - feedback_only_h8: outcome=tie metric=precision+speed margin=0.0
+    - feedback_only_h12: outcome=tie metric=precision+speed margin=0.0
 
 ### Criterion 2 – ✓ PASS
   - reactivation_rate: 0.0
@@ -189,6 +221,9 @@ Criteria passed: 2/3
   - baseline_c: success=False outcome=win metric=success_d margin=1.0
   - baseline_a_prime: success=True outcome=win metric=proj_speed margin=0.5
   - baseline_c_prime: success=True outcome=tie metric=proj_speed margin=0.0
+  - persistence_only: success=True outcome=win metric=proj_speed margin=0.5
+  - feedback_only_h8: success=False outcome=win metric=success_d margin=1.0
+  - feedback_only_h12: success=True outcome=tie metric=proj_speed margin=0.0
 
 ### Failed Criteria Details
 - Criterion 1: Main model beats all baselines in only 0/3 experiments (need >=2, each with outcome='win' against every baseline)
@@ -216,6 +251,9 @@ späte Kontextaktivierung ab Schritt 80. Target muss 40 Schritte Totzeit
 | baseline_c | ✗ | 0.079 | 0.101 | — | — |
 | baseline_a_prime | ✓ | 0.114 | 0.206 | 82 | 82 |
 | baseline_c_prime | ✓ | 0.114 | 0.206 | 81 | 81 |
+| persistence_only | ✓ | 0.109 | 0.174 | 82 | 82 |
+| feedback_only_h8 | ✗ | 0.079 | 0.101 | — | — |
+| feedback_only_h12 | ✓ | 0.114 | 0.206 | 81 | 81 |
 
 ![Experiment D](/home/user/Intuitionsemulator/output/experiment_d.png)
 
@@ -228,6 +266,9 @@ späte Kontextaktivierung ab Schritt 80. Target muss 40 Schritte Totzeit
 | baseline_c | ✓ win (success_d, Δ=1.00) |
 | baseline_a_prime | ✓ win (proj_speed, Δ=0.50) |
 | baseline_c_prime | ~ tie (proj_speed, Δ=0.00) |
+| persistence_only | ✓ win (proj_speed, Δ=0.50) |
+| feedback_only_h8 | ✓ win (success_d, Δ=1.00) |
+| feedback_only_h12 | ~ tie (proj_speed, Δ=0.00) |
 
 ---
 
@@ -292,3 +333,87 @@ gestützt. Die Mechanismen sind orthogonal für verschiedene Aufgabenklassen.
 
 Welche der drei Interpretationen zutrifft, kann dieser Prototyp nicht
 entscheiden.
+
+
+---
+
+## 8. Mechanismus-Vergleich: Persistenz vs. Feedback
+
+Die drei neuen Vergleichsmodi (`persistence_only`, `feedback_only_h8`,
+`feedback_only_h12`) isolieren die Einzelmechanismen zur direkten Gegenüberstellung.
+
+### 8.1 Klassifikation pro Experiment
+
+| Experiment | Klasse |
+|------------|--------|
+| experiment_a | `persistence_dominated` |
+| experiment_b | `feedback_dominated` |
+| experiment_c | `feedback_dominated` |
+| experiment_d | `mixed` |
+
+**Übergreifend:** `feedback_dominated`
+
+### 8.2 Vergleichsmatrix (persistence_only vs feedback_only_*)
+
+**Exp A (Totzeit):**
+
+| Vergleich | Outcome | Metrik | Δ |
+|-----------|---------|--------|---|
+| persistence_only vs feedback_only_h8 | `persistence_wins` | alive_at_50 | 1.00 |
+| persistence_only vs feedback_only_h12 | `no_advantage` | reactivation_time | 0.00 |
+
+**Exp B (Falscher Dominator):**
+
+| Vergleich | Outcome | Metrik | Δ |
+|-----------|---------|--------|---|
+| persistence_only vs feedback_only_h8 | `feedback_wins` | recovery_time | 1.00 |
+| persistence_only vs feedback_only_h12 | `feedback_wins` | recovery_time | 1.00 |
+
+**Exp C (Selektive Reaktivierung):**
+
+| Vergleich | Outcome | Metrik | Δ |
+|-----------|---------|--------|---|
+| persistence_only vs feedback_only_h8 | `feedback_wins` | precision | 1.00 |
+| persistence_only vs feedback_only_h12 | `feedback_wins` | precision | 1.00 |
+
+**Exp D (Langzeit-Kette):**
+
+| Vergleich | Outcome | Metrik | Δ |
+|-----------|---------|--------|---|
+| persistence_only vs feedback_only_h8 | `persistence_wins` | success_d | 1.00 |
+| persistence_only vs feedback_only_h12 | `feedback_wins` | proj_speed | 0.50 |
+
+### 8.3 Per-Experiment-Empfehlung
+
+- **Exp A (Totzeit)** [`persistence_dominated`]: persistence preferred — H=f(P) provides meaningful survival advantage; feedback adds no observable benefit in this scenario
+- **Exp B (Falscher Dominator)** [`feedback_dominated`]: feedback preferred — selective reactivation via F is necessary; persistence (H=f(P)) alone cannot achieve the required outcome
+- **Exp C (Selektive Reaktivierung)** [`feedback_dominated`]: feedback preferred — selective reactivation via F is necessary; persistence (H=f(P)) alone cannot achieve the required outcome
+- **Exp D (Langzeit-Kette)** [`mixed`]: both mechanisms contribute — persistence needed for survival, feedback needed for speed/selectivity; neither alone is sufficient
+
+---
+
+## 9. Architektonische Gesamtinterpretation
+
+Across tested scenarios, selective reactivation feedback (F) is the dominant differentiator. A model with fixed H but active feedback would cover most cases. Plausibility-dependent half-life is not the primary driver.
+
+### Ableitung
+
+- **Exp A (Totzeit):** Plausibilitätsabhängige Halbwertszeit H=f(P) ist der
+  entscheidende Mechanismus. Claims mit hoher Plausibilität überleben länger.
+  Feedback (F) trägt nichts bei, solange kein Kontext vorhanden ist.
+
+- **Exp B/C (Erholung/Selektivität):** Selektives Reaktivierungsfeedback (F) ist
+  notwendig und hinreichend. Die Wahl zwischen H=8, H=12 oder H=f(P) beeinflusst
+  nur, ob ein Claim die Drainage-Phase überlebt — nicht die Selektivität von F.
+
+- **Exp D (Kombination):** Beide Mechanismen sind für den vollen Erfolg nötig,
+  aber sie lösen verschiedene Teilprobleme. Persistenz sichert das Überleben;
+  Feedback beschleunigt die Reaktivierung.
+
+**Architektonische Trichotomie:**
+1. Szenarien mit langer Totzeit ohne Kontext → Persistenz-Mechanismus dominiert
+2. Szenarien mit verfügbarem Kontext und Selektionsdruck → Feedback dominiert
+3. Szenarien mit beidem → beide Mechanismen nötig, aber orthogonal
+
+Das Hauptmodell deckt alle drei Klassen ab, ist aber für keine einzigartig.
+Baselines mit fester H=12 und F decken Klassen 2 und 3 ebenso gut ab.

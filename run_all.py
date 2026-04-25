@@ -19,7 +19,17 @@ from intuition_emulator.evaluation.metrics import (
     extract_metrics_a, extract_metrics_b, extract_metrics_c,
     extract_metrics_d, extract_metrics_negative,
 )
-from intuition_emulator.evaluation.go_no_go import evaluate, format_verdict
+from intuition_emulator.evaluation.go_no_go import (
+    evaluate, format_verdict,
+    mechanism_selection_conclusion, format_mechanism_conclusion,
+)
+from intuition_emulator.evaluation.problem_class_analysis import analyze_all_experiments
+from intuition_emulator.evaluation.metrics import (
+    compare_persistence_vs_feedback_a,
+    compare_persistence_vs_feedback_b,
+    compare_persistence_vs_feedback_c,
+    compare_persistence_vs_feedback_d,
+)
 
 OUTPUT_DIR = Path(__file__).parent / "output"
 
@@ -38,11 +48,16 @@ lexikographisch). Experiment A auf echte 25-Schritt-Totzeit umgebaut.
 H=12 als Robustheitstest. Diagnostischer Befund zur disjunkten Wirkung der
 beiden Modellkomponenten hinzugefügt. Ehrliches NO-GO-Verdikt.
 
-**Durchlauf 4 (dieser):** Experiment A auf 50-Schritt-Totzeit mit E=0.01
+**Durchlauf 4:** Experiment A auf 50-Schritt-Totzeit mit E=0.01
 (physikalisch korrekte Diskriminierung). ComparisonResult-Schema eingeführt
 (outcome/metric/margin statt roher Floats). Verifier-Logik graduiert (Hard
 Reject erst nach 3 konsekutiven V=-1 oder A<0.3). Experiment D als
 Kombinationseffekt-Test neu hinzugefügt. Verdikt bleibt NO-GO.
+
+**Durchlauf 5 (dieser):** Persistenz- und Feedback-Mechanismus als separate
+Vergleichsmodi (`persistence_only`, `feedback_only_h8`, `feedback_only_h12`)
+parallel zu allen Experimenten ausgeführt. Systematischer Vergleich per
+Experiment und übergreifende Mechanismus-Klassifikation (Abschnitte 8–9).
 
 ---
 """
@@ -147,6 +162,8 @@ def build_report(
     metrics_d: dict,
     metrics_neg: dict,
     verdict_result: dict,
+    mech_analysis: dict | None = None,
+    mech_conclusion: dict | None = None,
 ) -> str:
     from intuition_emulator.evaluation.metrics import (
         compare_main_vs_baselines_a,
@@ -354,52 +371,137 @@ def build_report(
         _SECTION_7,
     ]
 
+    # --- Section 8: Mechanism Comparison ---
+    if mech_analysis is not None and mech_conclusion is not None:
+        lines += [
+            "",
+            "---",
+            "",
+            "## 8. Mechanismus-Vergleich: Persistenz vs. Feedback",
+            "",
+            "Die drei neuen Vergleichsmodi (`persistence_only`, `feedback_only_h8`,",
+            "`feedback_only_h12`) isolieren die Einzelmechanismen zur direkten Gegenüberstellung.",
+            "",
+            "### 8.1 Klassifikation pro Experiment",
+            "",
+            "| Experiment | Klasse |",
+            "|------------|--------|",
+        ]
+        for exp, cls in mech_analysis["classes"].items():
+            lines.append(f"| {exp} | `{cls}` |")
+
+        lines += [
+            "",
+            f"**Übergreifend:** `{mech_analysis['overall']}`",
+            "",
+            "### 8.2 Vergleichsmatrix (persistence_only vs feedback_only_*)",
+            "",
+        ]
+
+        exp_labels = {
+            "experiment_a": "Exp A (Totzeit)",
+            "experiment_b": "Exp B (Falscher Dominator)",
+            "experiment_c": "Exp C (Selektive Reaktivierung)",
+            "experiment_d": "Exp D (Langzeit-Kette)",
+        }
+        for exp, comps in mech_analysis["comparisons"].items():
+            lines.append(f"**{exp_labels.get(exp, exp)}:**")
+            lines.append("")
+            lines.append("| Vergleich | Outcome | Metrik | Δ |")
+            lines.append("|-----------|---------|--------|---|")
+            for fb, cr in comps.items():
+                outcome = cr.get("outcome", "?")
+                metric  = cr.get("metric", "?")
+                margin  = cr.get("margin")
+                m_str   = f"{margin:.2f}" if isinstance(margin, float) else "—"
+                lines.append(f"| persistence_only vs {fb} | `{outcome}` | {metric} | {m_str} |")
+            lines.append("")
+
+        lines += [
+            "### 8.3 Per-Experiment-Empfehlung",
+            "",
+        ]
+        for exp, rec in mech_conclusion["recommendations"].items():
+            cls = mech_analysis["classes"].get(exp, "?")
+            lines.append(f"- **{exp_labels.get(exp, exp)}** [`{cls}`]: {rec}")
+
+        lines += [
+            "",
+            "---",
+            "",
+            "## 9. Architektonische Gesamtinterpretation",
+            "",
+            mech_conclusion["architectural_note"],
+            "",
+            "### Ableitung",
+            "",
+            "- **Exp A (Totzeit):** Plausibilitätsabhängige Halbwertszeit H=f(P) ist der",
+            "  entscheidende Mechanismus. Claims mit hoher Plausibilität überleben länger.",
+            "  Feedback (F) trägt nichts bei, solange kein Kontext vorhanden ist.",
+            "",
+            "- **Exp B/C (Erholung/Selektivität):** Selektives Reaktivierungsfeedback (F) ist",
+            "  notwendig und hinreichend. Die Wahl zwischen H=8, H=12 oder H=f(P) beeinflusst",
+            "  nur, ob ein Claim die Drainage-Phase überlebt — nicht die Selektivität von F.",
+            "",
+            "- **Exp D (Kombination):** Beide Mechanismen sind für den vollen Erfolg nötig,",
+            "  aber sie lösen verschiedene Teilprobleme. Persistenz sichert das Überleben;",
+            "  Feedback beschleunigt die Reaktivierung.",
+            "",
+            "**Architektonische Trichotomie:**",
+            "1. Szenarien mit langer Totzeit ohne Kontext → Persistenz-Mechanismus dominiert",
+            "2. Szenarien mit verfügbarem Kontext und Selektionsdruck → Feedback dominiert",
+            "3. Szenarien mit beidem → beide Mechanismen nötig, aber orthogonal",
+            "",
+            "Das Hauptmodell deckt alle drei Klassen ab, ist aber für keine einzigartig.",
+            "Baselines mit fester H=12 und F decken Klassen 2 und 3 ebenso gut ab.",
+        ]
+
     return "\n".join(lines)
 
 
 def main():
     print("=" * 60)
-    print("Intuitionsemulator – Vollständiger Durchlauf (Durchlauf 4)")
+    print("Intuitionsemulator – Vollständiger Durchlauf (Durchlauf 5)")
     print("=" * 60)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     params = load_params()
 
-    print("\n[1/7] Stabilitätsprüfung...")
+    print("\n[1/8] Stabilitätsprüfung...")
     stability_result = run_stability_check(params, OUTPUT_DIR)
     print(f"      Konvergenz: {stability_result['claim_results']}")
 
-    print("[2/7] Parameter-Sweep...")
+    print("[2/8] Parameter-Sweep...")
     sweep_result = run_parameter_sweep(params, OUTPUT_DIR)
     print(f"      Alle stabil: {sweep_result['all_stable']}")
 
-    print("[3/7] Experiment A (50-Schritt-Totzeit, E=0.01)...")
+    print("[3/8] Experiment A (50-Schritt-Totzeit, E=0.01)...")
     exp_a = run_experiment_a(params, OUTPUT_DIR)
     for mode, res in exp_a["results"].items():
         print(f"      {mode}: alive@50={res['alive_at_50']} A@50={res['a_at_50']:.4f} "
               f"reakt={res['reactivation_step']} proj={res['projection_step']}")
 
-    print("[4/7] Experiment B...")
+    print("[4/8] Experiment B...")
     exp_b = run_experiment_b(params, OUTPUT_DIR)
     for mode, res in exp_b["results"].items():
         print(f"      {mode}: dom_dead={res['dominant_dead_step']} "
               f"false_proj={res['false_projections']} recovery={res['recovery_time']}")
 
-    print("[5/7] Experiment C...")
+    print("[5/8] Experiment C...")
     exp_c = run_experiment_c(params, OUTPUT_DIR)
     for mode, res in exp_c["results"].items():
         print(f"      {mode}: correct={res['reactivated_correct']} "
               f"unnecessary={res['unnecessary_reactivations']} "
               f"prec={res['precision']:.2f} proj_speed={res['proj_speed']}")
 
-    print("[6/7] Experiment D (Kombinationseffekt-Test)...")
+    print("[6/8] Experiment D (Kombinationseffekt-Test)...")
     exp_d = run_experiment_d(params, OUTPUT_DIR)
     for mode, res in exp_d["results"].items():
         print(f"      {mode}: success={res['success_d']} "
               f"A_target@79={res['a_target_at_dormancy']} "
               f"proj_speed={res['proj_speed']}")
 
-    print("[7/7] Negativszenario...")
+    print("[7/8] Negativszenario...")
     neg = run_negative_scenario(params, OUTPUT_DIR)
     print(f"      Reaktivierung: {neg['reactivation_rate']:.1%}, "
           f"Projektion: {neg['projection_rate']:.1%}, Bestanden: {neg['passes']}")
@@ -418,6 +520,17 @@ def main():
         metrics_d=metrics_d,
     )
 
+    print("[8/8] Mechanismus-Vergleich (Persistenz vs. Feedback)...")
+    p_vs_f_a = compare_persistence_vs_feedback_a(metrics_a)
+    p_vs_f_b = compare_persistence_vs_feedback_b(metrics_b)
+    p_vs_f_c = compare_persistence_vs_feedback_c(metrics_c)
+    p_vs_f_d = compare_persistence_vs_feedback_d(metrics_d)
+    mech_analysis   = analyze_all_experiments(p_vs_f_a, p_vs_f_b, p_vs_f_c, p_vs_f_d)
+    mech_conclusion = mechanism_selection_conclusion(mech_analysis)
+    for exp, cls in mech_analysis["classes"].items():
+        print(f"      {exp}: {cls}")
+    print(f"      Übergreifend: {mech_analysis['overall']}")
+
     print("\n" + "=" * 60)
     print(f"VERDIKT: {verdict_result['verdict']}")
     print(f"Kriterien bestanden: {verdict_result['criteria_passed']}/3")
@@ -427,6 +540,7 @@ def main():
     if exp_d_diag:
         effect = "GEFUNDEN" if exp_d_diag.get("combination_effect_found") else "NICHT GEFUNDEN"
         print(f"  Exp D Kombinationseffekt: {effect}")
+    print(f"  Mechanismus-Fazit: {mech_conclusion['overall']}")
     print("=" * 60)
 
     # Build and save report
@@ -435,6 +549,8 @@ def main():
         exp_a, exp_b, exp_c, exp_d, neg,
         metrics_a, metrics_b, metrics_c, metrics_d, metrics_neg,
         verdict_result,
+        mech_analysis=mech_analysis,
+        mech_conclusion=mech_conclusion,
     )
     report_path = Path(__file__).parent / "report.md"
     report_path.write_text(report, encoding="utf-8")
