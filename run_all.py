@@ -402,11 +402,17 @@ def build_report(
             "This section compares mechanism paths directly using existing experiment data.",
             "No new experiments. Mode aliases:",
             "",
-            "| Label | Mode string | H | F |",
-            "|-------|-------------|---|---|",
+            "| Label | H | F | Equivalent baseline |",
+            "|-------|---|---|---------------------|",
         ]
         for label, desc in MECHANISM_DESCRIPTIONS.items():
-            lines.append(f"| `{label}` | {desc} |")
+            # desc format: "H=f(P), F active  (= main)" — split at first comma and last paren
+            parts = desc.split(",", 1)
+            h_part = parts[0].strip()
+            rest   = parts[1].strip() if len(parts) > 1 else ""
+            f_part = rest.split("(")[0].strip()
+            eq_part = ("(" + rest.split("(", 1)[1]) if "(" in rest else ""
+            lines.append(f"| `{label}` | {h_part} | {f_part} | {eq_part} |")
 
         lines += [
             "",

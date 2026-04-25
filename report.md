@@ -348,12 +348,12 @@ entscheiden.
 This section compares mechanism paths directly using existing experiment data.
 No new experiments. Mode aliases:
 
-| Label | Mode string | H | F |
-|-------|-------------|---|---|
-| `combined_main` | H=f(P), F active  (= main) |
-| `persistence_only` | H=f(P), F=0       (= baseline_b) |
-| `feedback_only_h8` | H=8,    F active  (= baseline_c) |
-| `feedback_only_h12` | H=12,   F active  (= baseline_c_prime) |
+| Label | H | F | Equivalent baseline |
+|-------|---|---|---------------------|
+| `combined_main` | H=f(P) | F active | (= main) |
+| `persistence_only` | H=f(P) | F=0 | (= baseline_b) |
+| `feedback_only_h8` | H=8 | F active | (= baseline_c) |
+| `feedback_only_h12` | H=12 | F active | (= baseline_c_prime) |
 
 Standard comparison pairs (outcome=win means left side is better):
 
