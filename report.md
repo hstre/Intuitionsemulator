@@ -20,10 +20,16 @@ beiden Modellkomponenten hinzugefügt. Ehrliches NO-GO-Verdikt.
 Reject erst nach 3 konsekutiven V=-1 oder A<0.3). Experiment D als
 Kombinationseffekt-Test neu hinzugefügt. Verdikt bleibt NO-GO.
 
-**Durchlauf 5 (dieser):** Persistenz- und Feedback-Mechanismus als separate
+**Durchlauf 5:** Persistenz- und Feedback-Mechanismus als separate
 Vergleichsmodi (`persistence_only`, `feedback_only_h8`, `feedback_only_h12`)
-parallel zu allen Experimenten ausgeführt. Systematischer Vergleich per
-Experiment und übergreifende Mechanismus-Klassifikation (Abschnitte 8–9).
+parallel zu allen Experimenten ausgeführt.
+
+**Durchlauf 6 (dieser):** Mechanismenvergleich sauber explizit gemacht.
+Aliase dokumentiert (combined_main/persistence_only/feedback_only_h*/…).
+Neues Modul `mechanism_comparison.py` mit vollständiger 4-Paar-Analyse pro
+Experiment. Abschnitte 8–11 ersetzen die alten Sections durch explizite
+Mechanismus-Sektionen mit architektonischer Gesamtinterpretation und
+nüchterner Mechanism-Selection-Conclusion. Keine neuen Experimente.
 
 ---
 
@@ -337,83 +343,108 @@ entscheiden.
 
 ---
 
-## 8. Mechanismus-Vergleich: Persistenz vs. Feedback
+## Mechanism Comparison: Persistence vs Feedback
 
-Die drei neuen Vergleichsmodi (`persistence_only`, `feedback_only_h8`,
-`feedback_only_h12`) isolieren die Einzelmechanismen zur direkten Gegenüberstellung.
+This section compares mechanism paths directly using existing experiment data.
+No new experiments. Mode aliases:
 
-### 8.1 Klassifikation pro Experiment
+| Label | Mode string | H | F |
+|-------|-------------|---|---|
+| `combined_main` | H=f(P), F active  (= main) |
+| `persistence_only` | H=f(P), F=0       (= baseline_b) |
+| `feedback_only_h8` | H=8,    F active  (= baseline_c) |
+| `feedback_only_h12` | H=12,   F active  (= baseline_c_prime) |
 
-| Experiment | Klasse |
-|------------|--------|
-| experiment_a | `persistence_dominated` |
-| experiment_b | `feedback_dominated` |
-| experiment_c | `feedback_dominated` |
-| experiment_d | `mixed` |
+Standard comparison pairs (outcome=win means left side is better):
 
-**Übergreifend:** `feedback_dominated`
+- **persistence_only vs feedback_only_h8**: H=f(P) vs H=8+F — does persistence beat low-H feedback?
+- **persistence_only vs feedback_only_h12**: H=f(P) vs H=12+F — does persistence beat high-H feedback?
+- **combined_main vs persistence_only**: F contribution: does adding F to H=f(P) improve over persistence alone?
+- **combined_main vs feedback_only_h12**: H=f(P) over H=12: does variable H add anything when F is already active?
 
-### 8.2 Vergleichsmatrix (persistence_only vs feedback_only_*)
+### Experiment A – Long Dormancy (Persistence Test)
 
-**Exp A (Totzeit):**
+Primary metric: alive_at_50 (survival after 50 steps at E=0.01). Secondary: reactivation speed after context arrives.
 
-| Vergleich | Outcome | Metrik | Δ |
-|-----------|---------|--------|---|
-| persistence_only vs feedback_only_h8 | `persistence_wins` | alive_at_50 | 1.00 |
-| persistence_only vs feedback_only_h12 | `no_advantage` | reactivation_time | 0.00 |
+| Comparison | Outcome | Metric | Δ |
+|---|---|---|---|
+| persistence_only vs feedback_only_h8 | ✓ `win` | alive_at_50 | 1.00 |
+| persistence_only vs feedback_only_h12 | ~ `tie` | reactivation_time | 0.00 |
+| combined_main vs persistence_only | ~ `tie` | reactivation_time | 0.00 |
+| combined_main vs feedback_only_h12 | ~ `tie` | reactivation_time | 0.00 |
 
-**Exp B (Falscher Dominator):**
+**Class: `persistence_dominated`** — persistence_only outperforms feedback_only_h8; no feedback variant outperforms persistence_only
 
-| Vergleich | Outcome | Metrik | Δ |
-|-----------|---------|--------|---|
-| persistence_only vs feedback_only_h8 | `feedback_wins` | recovery_time | 1.00 |
-| persistence_only vs feedback_only_h12 | `feedback_wins` | recovery_time | 1.00 |
+### Experiment B – False Dominant Recovery (Feedback Test)
 
-**Exp C (Selektive Reaktivierung):**
+Primary metric: recovery_time (steps from dominant death to correct projection). Tests whether F enables history-based reactivation.
 
-| Vergleich | Outcome | Metrik | Δ |
-|-----------|---------|--------|---|
-| persistence_only vs feedback_only_h8 | `feedback_wins` | precision | 1.00 |
-| persistence_only vs feedback_only_h12 | `feedback_wins` | precision | 1.00 |
+| Comparison | Outcome | Metric | Δ |
+|---|---|---|---|
+| persistence_only vs feedback_only_h8 | ✗ `loss` | recovery_time | 1.00 |
+| persistence_only vs feedback_only_h12 | ✗ `loss` | recovery_time | 1.00 |
+| combined_main vs persistence_only | ✓ `win` | recovery_time | 1.00 |
+| combined_main vs feedback_only_h12 | ~ `tie` | recovery_time | 0.00 |
 
-**Exp D (Langzeit-Kette):**
+**Class: `feedback_dominated`** — feedback_only_h8 and feedback_only_h12 outperforms persistence_only; persistence_only shows no compensating advantage
 
-| Vergleich | Outcome | Metrik | Δ |
-|-----------|---------|--------|---|
-| persistence_only vs feedback_only_h8 | `persistence_wins` | success_d | 1.00 |
-| persistence_only vs feedback_only_h12 | `feedback_wins` | proj_speed | 0.50 |
+### Experiment C – Selective Reactivation (Selectivity Test)
 
-### 8.3 Per-Experiment-Empfehlung
+Primary metric: precision (correct / total reactivations). Tests whether F selectively reactivates only the high-history claim.
 
-- **Exp A (Totzeit)** [`persistence_dominated`]: persistence preferred — H=f(P) provides meaningful survival advantage; feedback adds no observable benefit in this scenario
-- **Exp B (Falscher Dominator)** [`feedback_dominated`]: feedback preferred — selective reactivation via F is necessary; persistence (H=f(P)) alone cannot achieve the required outcome
-- **Exp C (Selektive Reaktivierung)** [`feedback_dominated`]: feedback preferred — selective reactivation via F is necessary; persistence (H=f(P)) alone cannot achieve the required outcome
-- **Exp D (Langzeit-Kette)** [`mixed`]: both mechanisms contribute — persistence needed for survival, feedback needed for speed/selectivity; neither alone is sufficient
+| Comparison | Outcome | Metric | Δ |
+|---|---|---|---|
+| persistence_only vs feedback_only_h8 | ✗ `loss` | precision | -1.00 |
+| persistence_only vs feedback_only_h12 | ✗ `loss` | precision | -1.00 |
+| combined_main vs persistence_only | ✓ `win` | precision | 1.00 |
+| combined_main vs feedback_only_h12 | ~ `tie` | proj_speed | 0.00 |
+
+**Class: `feedback_dominated`** — feedback_only_h8 and feedback_only_h12 outperforms persistence_only; persistence_only shows no compensating advantage
+
+### Experiment D – Long-Chain Reactivation (Combined Scenario)
+
+Primary metric: success_d (5 conditions). Secondary: proj_speed. Tests combined dormancy + context reactivation.
+
+| Comparison | Outcome | Metric | Δ |
+|---|---|---|---|
+| persistence_only vs feedback_only_h8 | ✓ `win` | success_d | 1.00 |
+| persistence_only vs feedback_only_h12 | ✗ `loss` | proj_speed | -1.00 |
+| combined_main vs persistence_only | ✓ `win` | proj_speed | 0.50 |
+| combined_main vs feedback_only_h12 | ~ `tie` | proj_speed | 0.00 |
+
+**Class: `mixed`** — persistence_only wins against some feedback variants but loses to others; advantage depends on the H-level of the feedback baseline
 
 ---
 
-## 9. Architektonische Gesamtinterpretation
+## Problem-Class Interpretation
 
-Across tested scenarios, selective reactivation feedback (F) is the dominant differentiator. A model with fixed H but active feedback would cover most cases. Plausibility-dependent half-life is not the primary driver.
+| Experiment | Class | Basis |
+|---|---|---|
+| Experiment A | `persistence_dominated` | persistence_only outperforms feedback_only_h8; no feedback variant outperforms persistence_only |
+| Experiment B | `feedback_dominated` | feedback_only_h8 and feedback_only_h12 outperforms persistence_only; persistence_only shows no compensating advantage |
+| Experiment C | `feedback_dominated` | feedback_only_h8 and feedback_only_h12 outperforms persistence_only; persistence_only shows no compensating advantage |
+| Experiment D | `mixed` | persistence_only wins against some feedback variants but loses to others; advantage depends on the H-level of the feedback baseline |
 
-### Ableitung
+Distribution: persistence_dominated: 1, feedback_dominated: 2, mixed: 1
 
-- **Exp A (Totzeit):** Plausibilitätsabhängige Halbwertszeit H=f(P) ist der
-  entscheidende Mechanismus. Claims mit hoher Plausibilität überleben länger.
-  Feedback (F) trägt nichts bei, solange kein Kontext vorhanden ist.
+---
 
-- **Exp B/C (Erholung/Selektivität):** Selektives Reaktivierungsfeedback (F) ist
-  notwendig und hinreichend. Die Wahl zwischen H=8, H=12 oder H=f(P) beeinflusst
-  nur, ob ein Claim die Drainage-Phase überlebt — nicht die Selektivität von F.
+## Overall Architectural Interpretation
 
-- **Exp D (Kombination):** Beide Mechanismen sind für den vollen Erfolg nötig,
-  aber sie lösen verschiedene Teilprobleme. Persistenz sichert das Überleben;
-  Feedback beschleunigt die Reaktivierung.
+The existing experiment set does not support the strong coupling hypothesis. Feedback (F) is the dominant differentiator in the majority of tested scenarios. Persistence (H=f(P)) provides a survival advantage only in the pure dormancy scenario (Exp A) where no external context signal is present. These two problem classes are disjoint: dormancy survival and context-driven recovery are separate challenges addressed by separate mechanisms.
 
-**Architektonische Trichotomie:**
-1. Szenarien mit langer Totzeit ohne Kontext → Persistenz-Mechanismus dominiert
-2. Szenarien mit verfügbarem Kontext und Selektionsdruck → Feedback dominiert
-3. Szenarien mit beidem → beide Mechanismen nötig, aber orthogonal
+The data point toward modular problem-class-specific selection rather than a globally superior combined model. Persistence and feedback are better understood as two distinct tools for two distinct problem classes.
 
-Das Hauptmodell deckt alle drei Klassen ab, ist aber für keine einzigartig.
-Baselines mit fester H=12 und F decken Klassen 2 und 3 ebenso gut ab.
+combined_main (H=f(P) + F) shows no advantage over feedback_only_h12 (H=12 + F) in any tested experiment. The plausibility-dependent half-life provides no measurable benefit when reactivation feedback is already active.
+
+---
+
+## Mechanism Selection Conclusion
+
+- **persistence_only** seems preferable for long-dormancy scenarios without external context (Exp A). H=f(P) keeps high-plausibility claims alive longer than H=8; it provides no additional advantage over H=12.
+- **feedback_only** (H=8 or H=12, F active) seems preferable for context-driven recovery and selective reactivation (Exp B, Exp C). The F mechanism is necessary and sufficient; H level affects only whether the claim survives the pre-context drain phase.
+- In **Exp D**, both mechanisms contribute to different sub-problems (persistence for survival, feedback for reactivation speed). Neither alone is fully sufficient.
+
+- **combined_main shows no robust advantage over feedback_only_h12** in any tested experiment. Adding H=f(P) to an already-active feedback mechanism does not produce a measurable improvement.
+
+**Current evidence supports modular selection rather than forced coupling.** Persistence and feedback are better understood as two separate tools for two separate problem classes than as a robustly synergistic combined mechanism. A model choosing the appropriate mechanism per scenario would perform at least as well as combined_main and would be architecturally clearer.

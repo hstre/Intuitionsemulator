@@ -23,14 +23,26 @@ class IntuitionSystem:
     mode: "main" | "baseline_a" | "baseline_b" | "baseline_c"
           | "baseline_a_prime" | "baseline_c_prime"
           | "persistence_only" | "feedback_only_h8" | "feedback_only_h12"
-      baseline_a:        H = constant (8.0),  F = 0
-      baseline_b:        H = f(P),            F = 0
-      baseline_c:        H = constant (8.0),  F = main
-      baseline_a_prime:  H = constant (12.0), F = 0
-      baseline_c_prime:  H = constant (12.0), F = main
-      persistence_only:  H = f(P),            F = 0        # explicit persistence path
-      feedback_only_h8:  H = constant (8.0),  F = main     # explicit feedback path (H=8)
-      feedback_only_h12: H = constant (12.0), F = main     # explicit feedback path (H=12)
+
+    Mechanism path aliases (explicit labels for existing mode variants):
+    ┌────────────────────┬──────────────────┬─────────────┬─────────────┐
+    │ Mechanism label    │ Mode string      │ H           │ F           │
+    ├────────────────────┼──────────────────┼─────────────┼─────────────┤
+    │ combined_main      │ "main"           │ f(P)        │ active      │
+    │ persistence_only   │ "persistence_only│ f(P)        │ 0           │
+    │                    │  " = baseline_b  │             │             │
+    │ feedback_only_h8   │ "feedback_only_h8│ constant 8  │ active      │
+    │                    │  " = baseline_c  │             │             │
+    │ feedback_only_h12  │ "feedback_only_h1│ constant 12 │ active      │
+    │                    │  2" = baseline_c'│             │             │
+    │ persistence_h8     │ "baseline_a"     │ constant 8  │ 0           │
+    │ persistence_h12    │ "baseline_a_prime│ constant 12 │ 0           │
+    │                    │  "               │             │             │
+    └────────────────────┴──────────────────┴─────────────┴─────────────┘
+
+    These aliases are labels only — no new code paths. The dynamics are determined
+    entirely by the H computation (compute_half_life) and F computation
+    (compute_feedback) in dynamics.py based on the mode string.
     """
 
     def __init__(

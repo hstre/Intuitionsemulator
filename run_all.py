@@ -19,16 +19,12 @@ from intuition_emulator.evaluation.metrics import (
     extract_metrics_a, extract_metrics_b, extract_metrics_c,
     extract_metrics_d, extract_metrics_negative,
 )
-from intuition_emulator.evaluation.go_no_go import (
-    evaluate, format_verdict,
-    mechanism_selection_conclusion, format_mechanism_conclusion,
-)
-from intuition_emulator.evaluation.problem_class_analysis import analyze_all_experiments
-from intuition_emulator.evaluation.metrics import (
-    compare_persistence_vs_feedback_a,
-    compare_persistence_vs_feedback_b,
-    compare_persistence_vs_feedback_c,
-    compare_persistence_vs_feedback_d,
+from intuition_emulator.evaluation.go_no_go import evaluate, format_verdict
+from intuition_emulator.evaluation.mechanism_comparison import (
+    full_comparison_a, full_comparison_b, full_comparison_c, full_comparison_d,
+    classify_from_pairs, overall_architectural_verdict,
+    mechanism_selection_conclusion as make_mech_selection_text,
+    MECHANISM_DESCRIPTIONS,
 )
 
 OUTPUT_DIR = Path(__file__).parent / "output"
@@ -54,10 +50,16 @@ beiden Modellkomponenten hinzugefügt. Ehrliches NO-GO-Verdikt.
 Reject erst nach 3 konsekutiven V=-1 oder A<0.3). Experiment D als
 Kombinationseffekt-Test neu hinzugefügt. Verdikt bleibt NO-GO.
 
-**Durchlauf 5 (dieser):** Persistenz- und Feedback-Mechanismus als separate
+**Durchlauf 5:** Persistenz- und Feedback-Mechanismus als separate
 Vergleichsmodi (`persistence_only`, `feedback_only_h8`, `feedback_only_h12`)
-parallel zu allen Experimenten ausgeführt. Systematischer Vergleich per
-Experiment und übergreifende Mechanismus-Klassifikation (Abschnitte 8–9).
+parallel zu allen Experimenten ausgeführt.
+
+**Durchlauf 6 (dieser):** Mechanismenvergleich sauber explizit gemacht.
+Aliase dokumentiert (combined_main/persistence_only/feedback_only_h*/…).
+Neues Modul `mechanism_comparison.py` mit vollständiger 4-Paar-Analyse pro
+Experiment. Abschnitte 8–11 ersetzen die alten Sections durch explizite
+Mechanismus-Sektionen mit architektonischer Gesamtinterpretation und
+nüchterner Mechanism-Selection-Conclusion. Keine neuen Experimente.
 
 ---
 """
@@ -162,8 +164,10 @@ def build_report(
     metrics_d: dict,
     metrics_neg: dict,
     verdict_result: dict,
-    mech_analysis: dict | None = None,
-    mech_conclusion: dict | None = None,
+    mech_pairs: dict | None = None,      # {exp_name: full_comparison_X result}
+    mech_classes: dict | None = None,    # {exp_name: (class_label, reasoning)}
+    arch_verdict: dict | None = None,    # overall_architectural_verdict result
+    mech_selection_text: str | None = None,
 ) -> str:
     from intuition_emulator.evaluation.metrics import (
         compare_main_vs_baselines_a,
@@ -371,89 +375,118 @@ def build_report(
         _SECTION_7,
     ]
 
-    # --- Section 8: Mechanism Comparison ---
-    if mech_analysis is not None and mech_conclusion is not None:
+    # --- Sections 8–11: Explicit mechanism comparison ---
+    if mech_pairs is not None and mech_classes is not None and arch_verdict is not None:
+        _exp_meta = {
+            "experiment_a": ("Experiment A – Long Dormancy (Persistence Test)",
+                             "Primary metric: alive_at_50 (survival after 50 steps at E=0.01). "
+                             "Secondary: reactivation speed after context arrives."),
+            "experiment_b": ("Experiment B – False Dominant Recovery (Feedback Test)",
+                             "Primary metric: recovery_time (steps from dominant death to correct "
+                             "projection). Tests whether F enables history-based reactivation."),
+            "experiment_c": ("Experiment C – Selective Reactivation (Selectivity Test)",
+                             "Primary metric: precision (correct / total reactivations). "
+                             "Tests whether F selectively reactivates only the high-history claim."),
+            "experiment_d": ("Experiment D – Long-Chain Reactivation (Combined Scenario)",
+                             "Primary metric: success_d (5 conditions). "
+                             "Secondary: proj_speed. Tests combined dormancy + context reactivation."),
+        }
+        _sym = {"win": "✓", "loss": "✗", "tie": "~", "not_applicable": "n/a"}
+
         lines += [
             "",
             "---",
             "",
-            "## 8. Mechanismus-Vergleich: Persistenz vs. Feedback",
+            "## Mechanism Comparison: Persistence vs Feedback",
             "",
-            "Die drei neuen Vergleichsmodi (`persistence_only`, `feedback_only_h8`,",
-            "`feedback_only_h12`) isolieren die Einzelmechanismen zur direkten Gegenüberstellung.",
+            "This section compares mechanism paths directly using existing experiment data.",
+            "No new experiments. Mode aliases:",
             "",
-            "### 8.1 Klassifikation pro Experiment",
-            "",
-            "| Experiment | Klasse |",
-            "|------------|--------|",
+            "| Label | Mode string | H | F |",
+            "|-------|-------------|---|---|",
         ]
-        for exp, cls in mech_analysis["classes"].items():
-            lines.append(f"| {exp} | `{cls}` |")
+        for label, desc in MECHANISM_DESCRIPTIONS.items():
+            lines.append(f"| `{label}` | {desc} |")
 
         lines += [
             "",
-            f"**Übergreifend:** `{mech_analysis['overall']}`",
-            "",
-            "### 8.2 Vergleichsmatrix (persistence_only vs feedback_only_*)",
+            "Standard comparison pairs (outcome=win means left side is better):",
             "",
         ]
+        for la, lb, desc in [
+            ("persistence_only", "feedback_only_h8",
+             "H=f(P) vs H=8+F — does persistence beat low-H feedback?"),
+            ("persistence_only", "feedback_only_h12",
+             "H=f(P) vs H=12+F — does persistence beat high-H feedback?"),
+            ("combined_main",    "persistence_only",
+             "F contribution: does adding F to H=f(P) improve over persistence alone?"),
+            ("combined_main",    "feedback_only_h12",
+             "H=f(P) over H=12: does variable H add anything when F is already active?"),
+        ]:
+            lines.append(f"- **{la} vs {lb}**: {desc}")
+        lines.append("")
 
-        exp_labels = {
-            "experiment_a": "Exp A (Totzeit)",
-            "experiment_b": "Exp B (Falscher Dominator)",
-            "experiment_c": "Exp C (Selektive Reaktivierung)",
-            "experiment_d": "Exp D (Langzeit-Kette)",
-        }
-        for exp, comps in mech_analysis["comparisons"].items():
-            lines.append(f"**{exp_labels.get(exp, exp)}:**")
-            lines.append("")
-            lines.append("| Vergleich | Outcome | Metrik | Δ |")
-            lines.append("|-----------|---------|--------|---|")
-            for fb, cr in comps.items():
+        for exp_key, pairs in mech_pairs.items():
+            title, context = _exp_meta.get(exp_key, (exp_key, ""))
+            cls_label, cls_reason = mech_classes.get(exp_key, ("?", ""))
+            lines += [
+                f"### {title}",
+                "",
+                context,
+                "",
+                "| Comparison | Outcome | Metric | Δ |",
+                "|---|---|---|---|",
+            ]
+            for pair_key, pair_info in pairs.items():
+                cr      = pair_info["result"]
                 outcome = cr.get("outcome", "?")
                 metric  = cr.get("metric", "?")
                 margin  = cr.get("margin")
                 m_str   = f"{margin:.2f}" if isinstance(margin, float) else "—"
-                lines.append(f"| persistence_only vs {fb} | `{outcome}` | {metric} | {m_str} |")
-            lines.append("")
+                sym     = _sym.get(outcome, "?")
+                lines.append(
+                    f"| {pair_key} | {sym} `{outcome}` | {metric} | {m_str} |"
+                )
+            lines += [
+                "",
+                f"**Class: `{cls_label}`** — {cls_reason}",
+                "",
+            ]
 
         lines += [
-            "### 8.3 Per-Experiment-Empfehlung",
+            "---",
             "",
+            "## Problem-Class Interpretation",
+            "",
+            "| Experiment | Class | Basis |",
+            "|---|---|---|",
         ]
-        for exp, rec in mech_conclusion["recommendations"].items():
-            cls = mech_analysis["classes"].get(exp, "?")
-            lines.append(f"- **{exp_labels.get(exp, exp)}** [`{cls}`]: {rec}")
+        for exp_key, (cls_label, cls_reason) in mech_classes.items():
+            exp_short = _exp_meta.get(exp_key, (exp_key,))[0].split("–")[0].strip()
+            lines.append(f"| {exp_short} | `{cls_label}` | {cls_reason} |")
 
         lines += [
+            "",
+            "Distribution: "
+            + ", ".join(
+                f"{k}: {v}"
+                for k, v in arch_verdict["counts"].items()
+                if v > 0
+            ),
             "",
             "---",
             "",
-            "## 9. Architektonische Gesamtinterpretation",
+            "## Overall Architectural Interpretation",
             "",
-            mech_conclusion["architectural_note"],
+            arch_verdict["text"],
             "",
-            "### Ableitung",
+            arch_verdict["combined_note"],
             "",
-            "- **Exp A (Totzeit):** Plausibilitätsabhängige Halbwertszeit H=f(P) ist der",
-            "  entscheidende Mechanismus. Claims mit hoher Plausibilität überleben länger.",
-            "  Feedback (F) trägt nichts bei, solange kein Kontext vorhanden ist.",
+            "---",
             "",
-            "- **Exp B/C (Erholung/Selektivität):** Selektives Reaktivierungsfeedback (F) ist",
-            "  notwendig und hinreichend. Die Wahl zwischen H=8, H=12 oder H=f(P) beeinflusst",
-            "  nur, ob ein Claim die Drainage-Phase überlebt — nicht die Selektivität von F.",
+            "## Mechanism Selection Conclusion",
             "",
-            "- **Exp D (Kombination):** Beide Mechanismen sind für den vollen Erfolg nötig,",
-            "  aber sie lösen verschiedene Teilprobleme. Persistenz sichert das Überleben;",
-            "  Feedback beschleunigt die Reaktivierung.",
-            "",
-            "**Architektonische Trichotomie:**",
-            "1. Szenarien mit langer Totzeit ohne Kontext → Persistenz-Mechanismus dominiert",
-            "2. Szenarien mit verfügbarem Kontext und Selektionsdruck → Feedback dominiert",
-            "3. Szenarien mit beidem → beide Mechanismen nötig, aber orthogonal",
-            "",
-            "Das Hauptmodell deckt alle drei Klassen ab, ist aber für keine einzigartig.",
-            "Baselines mit fester H=12 und F decken Klassen 2 und 3 ebenso gut ab.",
+            mech_selection_text or "",
         ]
 
     return "\n".join(lines)
@@ -461,7 +494,7 @@ def build_report(
 
 def main():
     print("=" * 60)
-    print("Intuitionsemulator – Vollständiger Durchlauf (Durchlauf 5)")
+    print("Intuitionsemulator – Vollständiger Durchlauf (Durchlauf 6)")
     print("=" * 60)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -520,16 +553,24 @@ def main():
         metrics_d=metrics_d,
     )
 
-    print("[8/8] Mechanismus-Vergleich (Persistenz vs. Feedback)...")
-    p_vs_f_a = compare_persistence_vs_feedback_a(metrics_a)
-    p_vs_f_b = compare_persistence_vs_feedback_b(metrics_b)
-    p_vs_f_c = compare_persistence_vs_feedback_c(metrics_c)
-    p_vs_f_d = compare_persistence_vs_feedback_d(metrics_d)
-    mech_analysis   = analyze_all_experiments(p_vs_f_a, p_vs_f_b, p_vs_f_c, p_vs_f_d)
-    mech_conclusion = mechanism_selection_conclusion(mech_analysis)
-    for exp, cls in mech_analysis["classes"].items():
+    print("[8/8] Mechanismus-Vergleich (explizite Paarvergleiche)...")
+    mech_pairs = {
+        "experiment_a": full_comparison_a(exp_a["results"]),
+        "experiment_b": full_comparison_b(exp_b["results"]),
+        "experiment_c": full_comparison_c(exp_c["results"]),
+        "experiment_d": full_comparison_d(exp_d["results"]),
+    }
+    mech_classes = {
+        exp: classify_from_pairs(pairs)
+        for exp, pairs in mech_pairs.items()
+    }
+    arch_verdict = overall_architectural_verdict(mech_classes, mech_pairs)
+    mech_sel_text = make_mech_selection_text(mech_classes, mech_pairs, arch_verdict)
+
+    for exp, (cls, _) in mech_classes.items():
         print(f"      {exp}: {cls}")
-    print(f"      Übergreifend: {mech_analysis['overall']}")
+    print(f"      combined_main beats feedback_only_h12 in: "
+          f"{arch_verdict['cm_wins_over_fh12'] or 'none'}")
 
     print("\n" + "=" * 60)
     print(f"VERDIKT: {verdict_result['verdict']}")
@@ -540,7 +581,10 @@ def main():
     if exp_d_diag:
         effect = "GEFUNDEN" if exp_d_diag.get("combination_effect_found") else "NICHT GEFUNDEN"
         print(f"  Exp D Kombinationseffekt: {effect}")
-    print(f"  Mechanismus-Fazit: {mech_conclusion['overall']}")
+    print(f"  Architektur-Fazit: {arch_verdict['conclusion']} "
+          f"(pers={arch_verdict['counts']['persistence_dominated']} "
+          f"feed={arch_verdict['counts']['feedback_dominated']} "
+          f"mixed={arch_verdict['counts']['mixed']})")
     print("=" * 60)
 
     # Build and save report
@@ -549,8 +593,10 @@ def main():
         exp_a, exp_b, exp_c, exp_d, neg,
         metrics_a, metrics_b, metrics_c, metrics_d, metrics_neg,
         verdict_result,
-        mech_analysis=mech_analysis,
-        mech_conclusion=mech_conclusion,
+        mech_pairs=mech_pairs,
+        mech_classes=mech_classes,
+        arch_verdict=arch_verdict,
+        mech_selection_text=mech_sel_text,
     )
     report_path = Path(__file__).parent / "report.md"
     report_path.write_text(report, encoding="utf-8")
