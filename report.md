@@ -24,12 +24,54 @@ Kombinationseffekt-Test neu hinzugefügt. Verdikt bleibt NO-GO.
 Vergleichsmodi (`persistence_only`, `feedback_only_h8`, `feedback_only_h12`)
 parallel zu allen Experimenten ausgeführt.
 
-**Durchlauf 6 (dieser):** Mechanismenvergleich sauber explizit gemacht.
+**Durchlauf 6:** Mechanismenvergleich sauber explizit gemacht.
 Aliase dokumentiert (combined_main/persistence_only/feedback_only_h*/…).
 Neues Modul `mechanism_comparison.py` mit vollständiger 4-Paar-Analyse pro
-Experiment. Abschnitte 8–11 ersetzen die alten Sections durch explizite
-Mechanismus-Sektionen mit architektonischer Gesamtinterpretation und
-nüchterner Mechanism-Selection-Conclusion. Keine neuen Experimente.
+Experiment. Architektonische Gesamtinterpretation und Mechanism-Selection-Conclusion.
+Keine neuen Experimente.
+
+**Durchlauf 7 (dieser):** Trust-Variable T eingeführt (`claim.trust`).
+
+T akkumuliert Verifier-Historie und Plausibilität als langsames EMA-Signal
+und fließt ausschließlich additiv in den Reaktivierungs-Score (A bleibt).
+
+Formel: `v_smooth = mean(verifier_history[-stability_window:])` (0 wenn leer)
+`T_neu = clamp(rho * T + (1-rho) * sigmoid(t1 * v_smooth + t2 * P), 0, 1)`
+Score: `r1*max_R + r2*A + r3*P + r4*K + r_T*T - r5*penalty`
+
+**Protokoll der Parameter-Entscheidungen:**
+
+*rho=0.98 zurückgewiesen:*
+Vorgeschlagen war rho=0.98. Vorab-Check ergab: mit T₀=0 und n=20 Schritten
+ist T₂₀_max = 1.0 × (1−0.98²⁰) = 0.332 — unterhalb des Zielbereichs 0.55–0.70.
+rho=0.98 würde ≈70 Schritte erfordern, um 0.55 zu erreichen.
+Gewählt: **rho=0.95** → T₂₀ ≈ 0.94×(1−0.95²⁰) ≈ 0.60 bei V=+1, P≈0.70. ✓
+
+*T ersetzt A nicht (Option A gewählt):*
+Vorgeschlagen war T statt A im Score. Check: score = r1×0.7 + r2×0.165 =
+0.245 + 0.033 = 0.278 < θ_reactivate=0.45. Stattdessen T additiv mit
+eigenem Gewicht r_T, A bleibt. Vorteil: bestehende Experimente B/C/D bleiben
+kalibriert, kein Eingriff in bestehende Score-Terme.
+*r_T=1.5 zurückgewiesen (nach Implementierung):*
+r_T=1.5 wurde zuerst implementiert und bestand den theoretischen
+Score-Check (0.613 > 0.45). Beim Ausführen zeigte sich jedoch: t2=1.0 treibt T
+über den Plausibilitätspfad → T konvergiert gegen sigmoid(t2×P) ≈ 0.6, auch
+wenn kein Verifier aktiv ist. Fixpunkt-Analyse für Experiment D Phase 1:
+R_ss = 0.67/(1−0.175) = 0.812 > θ_R=0.40 → Früh-Projektion → success=False.
+Negativszenario: 100 % Reaktivierungsrate.
+
+*r_T=0.3 gewählt:*
+Fixpunkt-Check Experiment D: R_ss = 0.310/(1−0.175) = **0.376 < θ_R=0.40** ✓
+Negativszenario (P≈0.70, T≈0.70, A≈0.19, max_R≈0.12):
+score ≈ 0.042 + 0.038 + 0.140 + 0.210 = **0.430 < 0.45** ✓
+T-Beitrag bei hohem Trust (T=0.7): 0.3×0.7 = 0.21 — substanziell aber nicht
+dominant; bestehende Score-Terme bestimmen weiterhin den Ausgang.
+
+*Phase-2-Zerfall-Hinweis:*
+Zerfall auf T≈0.165 in 60 Schritten setzt voraus, dass der Verifier während
+der Dormanzphase V=−1 liefert (target≈0.182). Falls V=0 dominiert, konvergiert
+T gegen sigmoid(t2×P) ≈ 0.7 statt zu fallen. Das tatsächliche Verhalten hängt
+von der Verifier-Konfiguration der jeweiligen Experiment-Phase ab.
 
 ---
 
@@ -101,15 +143,15 @@ um ≥20%, ohne in einer anderen Metrik >20% schlechter zu sein.
 
 | Modus | Dominator verworfen Schritt | Falsche Projektionen | Erholungszeit |
 |-------|:-------------------------:|:-------------------:|:------------:|
-| main | 2 | 2 | 23 |
+| main | 2 | 2 | 19 |
 | baseline_a | 2 | 1 | — |
 | baseline_b | 2 | 1 | — |
-| baseline_c | 2 | 2 | 23 |
+| baseline_c | 2 | 2 | 19 |
 | baseline_a_prime | 2 | 1 | — |
-| baseline_c_prime | 2 | 2 | 23 |
+| baseline_c_prime | 2 | 2 | 19 |
 | persistence_only | 2 | 1 | — |
-| feedback_only_h8 | 2 | 2 | 23 |
-| feedback_only_h12 | 2 | 2 | 23 |
+| feedback_only_h8 | 2 | 2 | 19 |
+| feedback_only_h12 | 2 | 2 | 19 |
 
 ![Experiment B](/home/user/Intuitionsemulator/output/experiment_b.png)
 
@@ -135,15 +177,15 @@ besser). Geschwindigkeit nur als Tiebreaker, wenn Präzision gebunden (±20%).
 
 | Modus | Korrekte Reaktivierungen | Unnötige | Präzision | Proj.-Geschwindigkeit |
 |-------|:-----------------------:|:-------:|:--------:|:--------------------:|
-| main | 1 | 0 | 1.000 | 3 |
+| main | 1 | 0 | 1.000 | 0 |
 | baseline_a | 0 | 0 | 0.000 | — |
 | baseline_b | 0 | 0 | 0.000 | — |
-| baseline_c | 1 | 0 | 1.000 | 3 |
+| baseline_c | 1 | 0 | 1.000 | 0 |
 | baseline_a_prime | 1 | 0 | 1.000 | — |
-| baseline_c_prime | 1 | 0 | 1.000 | 3 |
+| baseline_c_prime | 1 | 0 | 1.000 | 0 |
 | persistence_only | 0 | 0 | 0.000 | — |
-| feedback_only_h8 | 1 | 0 | 1.000 | 3 |
-| feedback_only_h12 | 1 | 0 | 1.000 | 3 |
+| feedback_only_h8 | 1 | 0 | 1.000 | 0 |
+| feedback_only_h12 | 1 | 0 | 1.000 | 0 |
 
 ![Experiment C](/home/user/Intuitionsemulator/output/experiment_c.png)
 
@@ -153,12 +195,12 @@ besser). Geschwindigkeit nur als Tiebreaker, wenn Präzision gebunden (±20%).
 |----------|---------|
 | baseline_a | ✓ win (precision, Δ=1.00) |
 | baseline_b | ✓ win (precision, Δ=1.00) |
-| baseline_c | ~ tie (precision+speed, Δ=0.00) |
+| baseline_c | ~ tie (precision, Δ=0.00) |
 | baseline_a_prime | ✓ win (proj_speed, Δ=1.00) |
-| baseline_c_prime | ~ tie (precision+speed, Δ=0.00) |
+| baseline_c_prime | ~ tie (precision, Δ=0.00) |
 | persistence_only | ✓ win (precision, Δ=1.00) |
-| feedback_only_h8 | ~ tie (precision+speed, Δ=0.00) |
-| feedback_only_h12 | ~ tie (precision+speed, Δ=0.00) |
+| feedback_only_h8 | ~ tie (precision, Δ=0.00) |
+| feedback_only_h12 | ~ tie (precision, Δ=0.00) |
 
 ---
 
@@ -204,12 +246,12 @@ Criteria passed: 2/3
   - comparisons_c:
     - baseline_a: outcome=win metric=precision margin=1.0
     - baseline_b: outcome=win metric=precision margin=1.0
-    - baseline_c: outcome=tie metric=precision+speed margin=0.0
+    - baseline_c: outcome=tie metric=precision margin=0.0
     - baseline_a_prime: outcome=win metric=proj_speed margin=1.0
-    - baseline_c_prime: outcome=tie metric=precision+speed margin=0.0
+    - baseline_c_prime: outcome=tie metric=precision margin=0.0
     - persistence_only: outcome=win metric=precision margin=1.0
-    - feedback_only_h8: outcome=tie metric=precision+speed margin=0.0
-    - feedback_only_h12: outcome=tie metric=precision+speed margin=0.0
+    - feedback_only_h8: outcome=tie metric=precision margin=0.0
+    - feedback_only_h12: outcome=tie metric=precision margin=0.0
 
 ### Criterion 2 – ✓ PASS
   - reactivation_rate: 0.0
@@ -397,7 +439,7 @@ Primary metric: precision (correct / total reactivations). Tests whether F selec
 | persistence_only vs feedback_only_h8 | ✗ `loss` | precision | -1.00 |
 | persistence_only vs feedback_only_h12 | ✗ `loss` | precision | -1.00 |
 | combined_main vs persistence_only | ✓ `win` | precision | 1.00 |
-| combined_main vs feedback_only_h12 | ~ `tie` | proj_speed | 0.00 |
+| combined_main vs feedback_only_h12 | ~ `tie` | precision | 0.00 |
 
 **Class: `feedback_dominated`** — feedback_only_h8 and feedback_only_h12 outperforms persistence_only; persistence_only shows no compensating advantage
 

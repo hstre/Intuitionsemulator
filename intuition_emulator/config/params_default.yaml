@@ -26,3 +26,11 @@ r4: 0.25
 r5: 0.20
 theta_reactivate: 0.45
 mu: 0.5
+# Trust variable (T = claim.trust)
+# rho=0.98 rejected: T_20_max=0.332 < target range 0.55-0.70 (see compute_trust docstring)
+# r_T=1.5 rejected: fixed-point R_ss=0.81 > theta_R=0.40 in Exp D → early projection
+# r_T=0.3: R_ss=0.376 < theta_R ✓; neg-scenario score≈0.43 < 0.45 ✓
+rho: 0.95
+t1: 2.0
+t2: 1.0
+r_T: 0.3

@@ -132,6 +132,7 @@ class IntuitionSystem:
                 "P": claim.P,
                 "A": claim.A,
                 "H": claim.H,
+                "T": claim.trust,
                 "status": claim.status,
                 "stability": claim.stability,
                 "projection_ready": claim.is_projection_ready(self.params),

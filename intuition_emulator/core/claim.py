@@ -20,6 +20,7 @@ class ClaimState:
     verifier_history: List[int] = field(default_factory=list)
     neighbor_ids: List[str] = field(default_factory=list)
     verifier_exempt: bool = False  # if True: used as reference in verifier but never itself checked
+    trust: float = 0.0             # T: accumulated verifier-weighted reliability (starts at 0, earned over time)
 
     def __post_init__(self):
         # Only set max_R from initial R if it was not explicitly provided higher
