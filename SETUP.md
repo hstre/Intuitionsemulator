@@ -36,6 +36,18 @@ skills:
   write_approval: true
 ```
 
+## 3b. Desktop (optional, empfohlen)
+
+```bash
+hermes desktop
+```
+
+Die native App (macOS/Windows/Linux) ist nur ein Gesicht über demselben Agent-Kern —
+gleiche Config, gleiche Sessions, gleiche Skills. **Das Gate feuert dort identisch**:
+der Hook sitzt im Kern, nicht in der Oberfläche. Chat mit Streaming, Vorschau-Pane,
+Dateibrowser, Voice — und jeder Memory-/Skill-Schreibversuch läuft trotzdem durch
+den Governor.
+
 ## 4. Täglicher Umgang (die Mappe)
 
 ```bash
