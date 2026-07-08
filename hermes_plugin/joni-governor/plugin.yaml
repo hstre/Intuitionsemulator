@@ -1,0 +1,11 @@
+name: joni-governor
+version: 0.1.0
+description: >
+  Layer 9 as the sole write authority: every memory/skill write the agent attempts is
+  gated BEFORE persistence - staged as an epistemic proposal, decided by a deterministic
+  kernel or the operator. Models propose; the gate disposes. Fail-closed by design.
+author: hstre (governance components proven in the Joni testbed)
+kind: standalone
+hooks:
+  - pre_tool_call
+  - on_session_start

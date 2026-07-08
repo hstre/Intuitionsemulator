@@ -1,0 +1,10 @@
+# joni-governor policy - nach ~/.joni-governor/policy.yaml kopieren und anpassen.
+# Fehlt die Datei (oder ist sie unlesbar), gelten die STRIKTEN Defaults:
+# alles staged, nichts auto-erlaubt, Wiedergänger werden abgewiesen.
+
+memory:
+  auto_allow_actions:          # leer = jeder Memory-Write wird Vorschlag
+skills:
+  auto_allow_actions:          # leer = jeder Skill-Write wird Vorschlag
+revenant:
+  auto_reject: true            # bereits Verworfenes kommt nicht unbesehen wieder

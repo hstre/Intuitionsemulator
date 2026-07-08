@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "joni-governor"
+version = "0.1.0"
+description = "Layer 9 as the sole write authority over a Hermes agent - models propose, the gate disposes. Governance components operationally proven in the Joni testbed."
+requires-python = ">=3.11"
+# the epistemic kernel + the CoreState wrapper come from the Joni testbed
+dependencies = ["joni @ git+https://github.com/hstre/Joni.git"]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0"]
+
+[project.scripts]
+joni-governor = "joni_governor.cli:main"
+
+[tool.setuptools]
+packages = ["joni_governor"]
